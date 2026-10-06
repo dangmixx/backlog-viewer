@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backlog Viewer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236366f1'/><path d='M9 11h14M9 16h10M9 21h6' stroke='white' stroke-width='2.5' stroke-linecap='round'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f7f9; --panel:#fff; --sub:#f1f1f4; --line:#e6e6eb; --text:#18181b; --muted:#71717a; --faint:#a1a1aa;
+  --accent:#6366f1; --accent-soft:#eef0ff;
+  --todo:#71717a; --todo-bg:#f1f1f4; --doing:#d97706; --doing-bg:#fef3c7; --done:#16a34a; --done-bg:#dcfce7;
+  --p0:#dc2626; --p0-bg:#fee2e2; --p1:#2563eb; --p1-bg:#dbeafe; --p2:#71717a; --p2-bg:#f1f1f4;
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04); --r:12px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0c0c0f; --panel:#16161a; --sub:#1e1e23; --line:#2a2a31; --text:#f4f4f5; --muted:#a1a1aa; --faint:#63636b;
+  --accent:#818cf8; --accent-soft:#23243a;
+  --todo:#a1a1aa; --todo-bg:#26262c; --doing:#fbbf24; --doing-bg:#3a2e12; --done:#4ade80; --done-bg:#15301f;
+  --p0:#f87171; --p0-bg:#3b1717; --p1:#60a5fa; --p1-bg:#172a45; --p2:#a1a1aa; --p2-bg:#26262c;
+  --shadow:none;
+}}
+:root[data-theme="dark"]{
+  --bg:#0c0c0f; --panel:#16161a; --sub:#1e1e23; --line:#2a2a31; --text:#f4f4f5; --muted:#a1a1aa; --faint:#63636b;
+  --accent:#818cf8; --accent-soft:#23243a;
+  --todo:#a1a1aa; --todo-bg:#26262c; --doing:#fbbf24; --doing-bg:#3a2e12; --done:#4ade80; --done-bg:#15301f;
+  --p0:#f87171; --p0-bg:#3b1717; --p1:#60a5fa; --p1-bg:#172a45; --p2:#a1a1aa; --p2-bg:#26262c;
+  --shadow:none;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+code,.mono{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;font-size:.86em}
+code{background:var(--sub);padding:1px 5px;border-radius:5px}
+a{color:var(--accent)}
+
+.app{display:grid;grid-template-columns:260px 1fr;height:100vh}
+aside{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.brand{display:flex;align-items:center;gap:10px;padding:18px 18px 14px;font-weight:700;font-size:15px}
+.brand .logo{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center}
+.nav{flex:1;overflow:auto;padding:4px 10px}
+.nav-label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:14px 8px 6px}
+.nav-item{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:8px 10px;border-radius:8px;cursor:pointer;text-align:left}
+.nav-item:hover{background:var(--sub)}
+.nav-item.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav-item .dot{width:10px;height:10px;border-radius:3px;flex:none}
+.nav-item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-item .pct{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.nav-item.active .pct{color:var(--accent)}
+.aside-foot{padding:12px;border-top:1px solid var(--line);display:flex;gap:8px}
+
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);padding:7px 12px;border-radius:8px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{background:var(--sub)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--p0)}
+.btn.ghost{border-color:transparent;background:none}
+.btn.icon{padding:7px}
+.grow{flex:1}
+
+main{overflow:auto;min-width:0}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 32px 60px}
+.head{display:flex;align-items:flex-start;gap:16px;margin-bottom:6px}
+.head h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em}
+.head .sub{color:var(--muted);margin-top:4px;max-width:720px}
+.path{color:var(--faint);font-size:12px;margin-top:6px;word-break:break-all}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:22px 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow)}
+.stat .k{font-size:12px;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:6px}
+.stat .v{font-size:24px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.bar{height:6px;border-radius:99px;background:var(--sub);overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.bar .d{background:var(--done)} .bar .g{background:var(--doing)}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0;margin-bottom:6px}
+.search{flex:1;min-width:200px;position:relative}
+.search input{width:100%;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:8px 12px 8px 34px;outline:none}
+.search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--faint)}
+.seg{display:flex;background:var(--sub);border-radius:9px;padding:3px;gap:2px}
+.seg button{border:0;background:none;padding:5px 10px;border-radius:7px;cursor:pointer;color:var(--muted);font-weight:500;font-size:13px;white-space:nowrap}
+.seg button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.seg button .n{color:var(--faint);margin-left:4px;font-variant-numeric:tabular-nums}
+select.sel{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 10px;max-width:220px}
+
+.section{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);margin-bottom:14px;box-shadow:var(--shadow);overflow:hidden}
+.sec-head{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;user-select:none}
+.sec-head:hover{background:var(--sub)}
+.sec-head h3{margin:0;font-size:14px;font-weight:600;flex:1;min-width:0}
+.sec-head .chev{transition:transform .15s;color:var(--faint)}
+.section.closed .chev{transform:rotate(-90deg)}
+.section.closed .rows,.section.closed .note{display:none}
+.sec-head .cnt{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sec-head .bar{width:90px}
+.note{padding:0 16px 10px 42px;color:var(--muted);font-size:13px}
+.rows{border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:92px 1fr auto;gap:14px;align-items:start;padding:10px 16px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row:hover{background:var(--sub)}
+.row .id{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;font-size:12px;color:var(--muted);padding-top:2px}
+.row .t{min-width:0;overflow-wrap:anywhere}
+.row.done .t{color:var(--muted)}
+.row .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.row .needs{font-size:12px;color:var(--doing);display:flex;gap:4px;align-items:center}
+.row .proj{font-size:12px;color:var(--muted)}
+.row .right{display:flex;gap:6px;align-items:center}
+.tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--sub);color:var(--muted);white-space:nowrap}
+.tag.P0{background:var(--p0-bg);color:var(--p0)} .tag.P1{background:var(--p1-bg);color:var(--p1)} .tag.P2{background:var(--p2-bg);color:var(--p2)}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:99px;border:0;cursor:pointer;white-space:nowrap}
+.st::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.st.todo{background:var(--todo-bg);color:var(--todo)} .st.doing{background:var(--doing-bg);color:var(--doing)} .st.done{background:var(--done-bg);color:var(--done)}
+.st.none{background:none;color:var(--faint);cursor:default} .st.none::before{background:transparent;border:1px dashed currentColor}
+.st:not(.none):hover{filter:brightness(.95)}
+
+.board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+.col{background:var(--sub);border-radius:var(--r);padding:10px;min-height:120px}
+.col h4{margin:2px 4px 10px;font-size:13px;display:flex;align-items:center;gap:8px}
+.col h4 .n{color:var(--muted);font-weight:500}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;box-shadow:var(--shadow)}
+.card .top{display:flex;gap:8px;align-items:center;margin-bottom:4px}
+.card .top .id{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;font-size:11px;color:var(--muted);flex:1}
+.card .t{font-size:13px;overflow-wrap:anywhere}
+.card .foot{display:flex;align-items:center;gap:8px;margin-top:8px}
+.card .sec{font-size:11px;color:var(--faint);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .top .id{white-space:nowrap}
+.more{text-align:center;color:var(--muted);font-size:12px;padding:6px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px;cursor:pointer;box-shadow:var(--shadow);transition:border-color .15s,transform .15s}
+.pcard:hover{border-color:var(--accent);transform:translateY(-1px)}
+.pcard .top{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.pcard .top .dot{width:12px;height:12px;border-radius:4px}
+.pcard h3{margin:0;font-size:16px;flex:1}
+.pcard .big{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pcard .desc{color:var(--muted);font-size:13px;margin:4px 0 14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.9em}
+.pcard .nums{display:flex;gap:14px;margin-top:10px;font-size:12px;color:var(--muted)}
+.pcard .nums b{color:var(--text);font-variant-numeric:tabular-nums}
+.pcard .cur{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;font-size:12px}
+.pcard .cur div{display:flex;gap:8px;padding:2px 0;color:var(--muted)}
+.pcard .cur .mono{color:var(--doing);flex:none}
+.pcard .cur span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+h2.h{font-size:15px;margin:30px 0 12px;font-weight:600}
+.empty{color:var(--muted);text-align:center;padding:50px 20px}
+
+.err{background:var(--p0-bg);color:var(--p0);border-radius:var(--r);padding:14px 16px}
+dialog{border:1px solid var(--line);border-radius:16px;padding:0;background:var(--panel);color:var(--text);width:min(520px,calc(100vw - 32px));box-shadow:0 20px 60px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(0,0,0,.35);backdrop-filter:blur(2px)}
+dialog form{padding:22px}
+dialog h3{margin:0 0 16px;font-size:17px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
+.field input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 11px;outline:none}
+.field input:focus{border-color:var(--accent)}
+.field .hint{font-size:12px;color:var(--faint);margin-top:4px}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}
+.swatches button{width:26px;height:26px;border-radius:8px;border:2px solid transparent;cursor:pointer}
+.swatches button.on{border-color:var(--text)}
+.sugg{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.sugg button{text-align:left;border:1px dashed var(--line);background:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12px;color:var(--muted)}
+.sugg button:hover{border-color:var(--accent);color:var(--accent)}
+.actions{display:flex;gap:8px;margin-top:20px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--text);color:var(--bg);padding:9px 16px;border-radius:10px;font-weight:500;transition:transform .2s;z-index:50}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast{display:flex;align-items:center;gap:14px;white-space:nowrap}
+.toast button{border:0;background:none;color:var(--accent);font-weight:600;cursor:pointer;padding:0}
+.toast kbd{font:11px "JetBrains Mono",monospace;opacity:.55}
+.menu-btn{display:none}
+
+/* ---- status menu + pending change ---- */
+#stMenu{position:fixed;z-index:60;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+#stMenu .sm-h{font-size:11px;color:var(--faint);padding:4px 9px 6px}
+#stMenu button{display:flex;align-items:center;gap:9px;width:100%;border:0;background:none;padding:7px 9px;border-radius:7px;cursor:pointer;text-align:left;font-size:13px}
+#stMenu button:hover:not([disabled]),#stMenu button:focus-visible{background:var(--sub);outline:none}
+#stMenu button[disabled]{cursor:default;color:var(--muted)}
+#stMenu .ck{margin-left:auto;color:var(--accent)}
+#stMenu .sm-sep{height:1px;background:var(--line);margin:4px 2px}
+#stMenu .sm-cancel{color:var(--p0)}
+.st.pending{outline:1.5px dashed currentColor;outline-offset:1px}
+.st.pending{position:relative;overflow:hidden}
+.st.pending{isolation:isolate}
+.st .pbar{height:auto;bottom:0;opacity:.28;z-index:-1}
+/* progress bar along the top edge, drains over the 5 s window (negative delay keeps it in sync after re-render) */
+.pbar{position:absolute;left:0;top:0;height:3px;width:100%;background:currentColor;transform-origin:left;animation:drain linear forwards}
+.toast{overflow:hidden}
+.toast .pbar{height:3px;background:var(--accent)}
+@keyframes drain{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+
+/* ---- release build ---- */
+dialog.wide{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 32px)}
+#bdlgBody{padding:22px}
+#bdlgBody h3{margin:0 0 4px;font-size:17px}
+.b-cmd{font-size:12px;color:var(--muted);margin-bottom:16px;word-break:break-all}
+.b-ver{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;background:var(--sub);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px}
+.b-ver input[type=text],.b-ver input[type=number]{width:90px;border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:5px 8px;font:12px "JetBrains Mono",monospace;color:inherit}
+.b-ver label{display:flex;gap:6px;align-items:center}
+.b-ver input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;margin:0}
+.b-log{background:#0f0f12;color:#d4d4d8;font:12px/1.5 "JetBrains Mono",ui-monospace,Consolas,monospace;border-radius:10px;padding:12px 14px;height:min(320px,40vh);min-height:120px;overflow:auto;white-space:pre-wrap;word-break:break-all;margin:0}
+.b-status{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:12px;min-height:24px}
+.b-status .ok{color:var(--done);font-weight:600}.b-status .bad{color:var(--p0);font-weight:600}
+.spin{width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn.building{color:var(--doing);border-color:var(--doing)}
+
+/* ---- AI prompt composer ---- */
+.row,.card{cursor:pointer}
+.row.picked{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.card.picked{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.app.drawer-open{grid-template-columns:260px 1fr 440px}
+#drawer{display:none;border-left:1px solid var(--line);background:var(--panel);flex-direction:column;min-height:0;min-width:0}
+.app.drawer-open #drawer{display:flex}
+.dr-head{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.dr-head h3{margin:0;font-size:15px;flex:1;display:flex;align-items:center;gap:8px}
+.dr-body{flex:1;overflow:auto;padding:16px 18px;display:flex;flex-direction:column;gap:16px}
+.dr-label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.dr-label .grow{flex:1}
+.chips{display:flex;flex-direction:column;gap:6px}
+.chip{display:flex;gap:8px;align-items:flex-start;background:var(--sub);border-radius:8px;padding:7px 8px 7px 10px;font-size:13px}
+.chip .mono{color:var(--accent);flex:none;font-size:12px;padding-top:1px}
+.chip .tt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.chip button{border:0;background:none;color:var(--faint);cursor:pointer;padding:0 2px;font-size:15px;line-height:1}
+.chip button:hover{color:var(--p0)}
+.dr-hint{font-size:12px;color:var(--faint)}
+.seg.full{display:flex}.seg.full button{flex:1}
+.checks{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.checks label{display:flex;gap:8px;align-items:center;cursor:pointer}
+.checks input{accent-color:var(--accent);width:15px;height:15px;margin:0}
+.dr-body textarea{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 11px;outline:none;resize:vertical;font:inherit;color:inherit}
+.dr-body textarea:focus{border-color:var(--accent)}
+#drPrompt{font:12px/1.55 "JetBrains Mono",ui-monospace,Consolas,monospace;min-height:120px}
+.dr-foot{display:flex;gap:8px;align-items:center;padding:14px 18px;border-top:1px solid var(--line)}
+.dr-foot .meta{font-size:12px;color:var(--faint);flex:1}
+.edited{font-size:11px;color:var(--doing);text-transform:none;letter-spacing:0;font-weight:500}
+.linkbtn{border:0;background:none;color:var(--accent);cursor:pointer;font-size:12px;padding:0;text-transform:none;letter-spacing:0;font-weight:500}
+@media (max-width:1300px){.app.drawer-open{grid-template-columns:220px 1fr 400px}}
+@media (max-width:1100px){
+  .app.drawer-open{grid-template-columns:260px 1fr}
+  #drawer{position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);z-index:40;box-shadow:-12px 0 40px rgba(0,0,0,.25)}
+}
+@media (max-width:860px){
+  .app.drawer-open{grid-template-columns:1fr}
+  #drawer{width:100%}
+}
+
+@media (max-width:860px){
+  .app{grid-template-columns:1fr}
+  aside{position:fixed;inset:0 auto 0 0;width:270px;z-index:30;transform:translateX(-100%);transition:transform .2s}
+  aside.open{transform:none;box-shadow:0 0 0 100vmax rgba(0,0,0,.35)}
+  .menu-btn{display:inline-flex}
+  .wrap{padding:16px 16px 50px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .board{grid-template-columns:1fr}
+  .row{grid-template-columns:1fr auto}
+  .row .id{grid-column:1/-1;padding:0}
+  .sec-head .bar{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside id="aside">
+    <div class="brand"><span class="logo"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M3 8h7M3 12h4" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span>Backlog Viewer</div>
+    <div class="nav" id="nav"></div>
+    <div class="aside-foot">
+      <button class="btn primary grow" id="addBtn"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Thêm dự án</button>
+      <button class="btn icon" id="powerBtn" title="Tắt server"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4.6 4.2a5 5 0 1 0 6.8 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      <button class="btn icon" id="themeBtn" title="Đổi giao diện sáng/tối"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 9.5A5.5 5.5 0 1 1 6.5 2.5a4.5 4.5 0 0 0 7 7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
+    </div>
+  </aside>
+  <main id="main"></main>
+  <section id="drawer"></section>
+</div>
+
+<dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
+<dialog id="bdlg" class="wide"><div id="bdlgBody"></div></dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+const COLORS = ['#6366f1','#ec4899','#f59e0b','#10b981','#06b6d4','#8b5cf6','#ef4444','#84cc16'];
+const ST_LABEL = { todo: 'Chưa làm', doing: 'Đang làm', done: 'Xong', none: '—' };
+const NEXT = { todo: 'doing', doing: 'done', done: 'todo' };
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const md = s => esc(s)
+  .replace(/`([^`]+)`/g, '<code>$1</code>')
+  .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+  .replace(/~~(.+?)~~/g, '<s>$1</s>')
+  .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<span style="text-decoration:underline dotted">$1</span>');
+
+let projects = [];
+let state = load('bv-state', { view: 'all', status: 'open', prio: 'all', section: 'all', q: '', mode: 'list', closed: {} });
+function load(k, d) { try { return { ...d, ...JSON.parse(localStorage.getItem(k)) }; } catch { return d; } }
+function persist() { try { localStorage.setItem('bv-state', JSON.stringify({ ...state, q: '' })); } catch {} }
+
+const colorOf = (p, i) => p.color || COLORS[(i ?? projects.indexOf(p)) % COLORS.length];
+function counts(ts) {
+  const c = { todo: 0, doing: 0, done: 0, none: 0, total: 0 };
+  ts.forEach(t => { c[t.status]++; if (t.hasStatus) c.total++; });
+  c.pct = c.total ? Math.round(c.done / c.total * 100) : 0;
+  return c;
+}
+const bar = c => `<div class="bar"><i class="d" style="width:${c.total ? c.done / c.total * 100 : 0}%"></i><i class="g" style="width:${c.total ? c.doing / c.total * 100 : 0}%"></i></div>`;
+
+async function api(url, opt = {}) {
+  const r = await fetch(url, { headers: { 'Content-Type': 'application/json', 'X-BV': '1' }, ...opt, body: opt.body && JSON.stringify(opt.body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function toast(msg, action) {
+  const t = $('#toast');
+  t.innerHTML = `<span>${esc(msg)}</span>` + (action ? `<button>${esc(action.label)}</button><kbd>Ctrl+Z</kbd>` : '');
+  if (action) t.querySelector('button').onclick = action.run;
+  t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), action ? 6000 : 2000);
+}
+
+async function refresh(silent) {
+  try {
+    const next = await api('/api/projects');
+    const sig = j => JSON.stringify(j.map(p => [p.id, p.name, p.color, p.file, p.mtime, p.building, p.canBuild]));
+    if (silent && sig(next) === sig(projects)) return;
+    projects = next;
+    if (state.view !== 'all' && !projects.some(p => p.id === state.view)) state.view = 'all';
+    render();
+  } catch (e) { if (!silent) $('#main').innerHTML = `<div class="wrap"><div class="err">Không kết nối được server: ${esc(e.message)}</div></div>`; }
+}
+
+function render() { renderNav(); state.view === 'all' ? renderAll() : renderProject(projects.find(p => p.id === state.view)); }
+
+function renderNav() {
+  const all = counts(projects.flatMap(p => p.tickets));
+  $('#nav').innerHTML = `
+    <button class="nav-item ${state.view === 'all' ? 'active' : ''}" data-view="all">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="2" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="9" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="9" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nm">Tổng quan</span><span class="pct">${all.pct}%</span></button>
+    <div class="nav-label">Dự án · ${projects.length}</div>
+    ${projects.map((p, i) => { const c = counts(p.tickets); return `
+      <button class="nav-item ${state.view === p.id ? 'active' : ''}" data-view="${esc(p.id)}">
+        <span class="dot" style="background:${colorOf(p, i)}"></span><span class="nm">${esc(p.name)}</span><span class="pct">${p.error ? '!' : c.pct + '%'}</span></button>`; }).join('')}
+    ${projects.length ? '' : '<div class="nav-label" style="text-transform:none;letter-spacing:0">Chưa có dự án</div>'}`;
+}
+
+function go(view) { state.view = view; state.section = 'all'; persist(); render(); $('#main').scrollTop = 0; $('#aside').classList.remove('open'); }
+
+const menuBtn = `<button class="btn icon menu-btn" data-act="menu" title="Menu"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>`;
+
+function statCards(c, extra = '') {
+  return `<div class="stats">
+    <div class="stat"><div class="k">Tiến độ</div><div class="v">${c.pct}%</div>${bar(c)}</div>
+    <div class="stat"><div class="k"><span class="st todo" style="padding:0;background:none"></span>Chưa làm</div><div class="v">${c.todo}</div></div>
+    <div class="stat"><div class="k"><span class="st doing" style="padding:0;background:none"></span>Đang làm</div><div class="v">${c.doing}</div></div>
+    <div class="stat"><div class="k"><span class="st done" style="padding:0;background:none"></span>Xong</div><div class="v">${c.done}<span style="font-size:14px;color:var(--faint);font-weight:500"> / ${c.total}</span></div></div>
+  </div>${extra}`;
+}
+
+function renderAll() {
+  const all = projects.flatMap(p => p.tickets.map(t => ({ ...t, p })));
+  const c = counts(all);
+  const doing = all.filter(t => t.status === 'doing');
+  const p0 = all.filter(t => t.status === 'todo' && t.priority === 'P0');
+  $('#main').innerHTML = `<div class="wrap">
+    <div class="head">${menuBtn}<div class="grow"><h1>Tổng quan</h1><div class="sub">${projects.length} dự án · ${all.length} ticket</div></div></div>
+    ${statCards(c)}
+    ${projects.length ? `<div class="grid">${projects.map((p, i) => projectCard(p, i)).join('')}</div>` : `<div class="empty">Chưa có dự án nào.<br><br><button class="btn primary" data-act="add">Thêm dự án</button></div>`}
+    ${doing.length ? `<h2 class="h">Đang làm · ${doing.length}</h2><div class="section"><div class="rows">${doing.map(t => row(t, t.p)).join('')}</div></div>` : ''}
+    ${p0.length ? `<h2 class="h">P0 chưa làm · ${p0.length}</h2><div class="section"><div class="rows">${p0.map(t => row(t, t.p)).join('')}</div></div>` : ''}
+  </div>`;
+}
+
+function projectCard(p, i) {
+  const c = counts(p.tickets);
+  const doing = p.tickets.filter(t => t.status === 'doing').slice(0, 3);
+  return `<div class="pcard" data-view="${esc(p.id)}">
+    <div class="top"><span class="dot" style="background:${colorOf(p, i)}"></span><h3>${esc(p.name)}</h3><span class="big">${c.pct}%</span></div>
+    <div class="desc">${p.error ? `<span style="color:var(--p0)">${esc(p.error)}</span>` : md(p.intro.split('\n')[0] || p.file)}</div>
+    ${bar(c)}
+    <div class="nums"><span><b>${c.todo}</b> chưa làm</span><span><b>${c.doing}</b> đang làm</span><span><b>${c.done}</b> xong</span></div>
+    ${doing.length ? `<div class="cur">${doing.map(t => `<div><span class="mono">${esc(t.id)}</span><span>${esc(t.title.replace(/[`*]/g, ''))}</span></div>`).join('')}</div>` : ''}
+  </div>`;
+}
+
+function matches(t) {
+  const board = state.view !== 'all' && state.mode === 'board';
+  if (!board && state.status === 'open' && !(t.status === 'todo' || t.status === 'doing' || !t.hasStatus)) return false;
+  if (!board && !['all', 'open'].includes(state.status) && t.status !== state.status) return false;
+  if (state.prio !== 'all' && t.priority !== state.prio) return false;
+  if (state.section !== 'all' && t.section !== state.section) return false;
+  if (state.q) { const q = state.q.toLowerCase(); if (!(t.id + ' ' + t.title + ' ' + t.needs).toLowerCase().includes(q)) return false; }
+  return true;
+}
+
+function renderProject(p) {
+  if (!p) return renderAll();
+  const c = counts(p.tickets);
+  const shown = p.tickets.filter(matches);
+  const prios = [...new Set(p.tickets.map(t => t.priority).filter(Boolean))].sort();
+  const secs = p.sections.map(s => s.name).filter(n => p.tickets.some(t => t.section === n));
+  const nStatus = k => k === 'all' ? p.tickets.length : k === 'open' ? p.tickets.filter(t => t.status === 'todo' || t.status === 'doing' || !t.hasStatus).length : c[k];
+  const segBtn = (k, label) => `<button class="${state.status === k ? 'on' : ''}" data-status="${k}">${label}<span class="n">${nStatus(k)}</span></button>`;
+
+  $('#main').innerHTML = `<div class="wrap">
+    <div class="head">${menuBtn}
+      <div class="grow"><h1><span class="dot" style="display:inline-block;width:12px;height:12px;border-radius:4px;background:${colorOf(p)};margin-right:10px;vertical-align:2px"></span>${esc(p.name)}</h1>
+        ${p.intro ? `<div class="sub">${md(p.intro)}</div>` : ''}
+        <div class="path mono">${esc(p.file)}</div></div>
+      <button class="btn ${p.building ? 'building' : ''}" data-act="build" title="Build bản release mới">${p.building
+        ? '<span class="spin"></span>Đang build…'
+        : '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Build release'}</button>
+      <button class="btn" data-act="edit"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10.5 2.5l3 3L6 13H3v-3l7.5-7.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>Sửa</button>
+    </div>
+    ${p.error ? `<div class="err" style="margin-top:20px">${esc(p.error)} — kiểm tra lại đường dẫn file.</div>` : `
+    ${statCards(c)}
+    <div class="toolbar">
+      <div class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><input id="q" placeholder="Tìm ID, nội dung…  ( / )" value="${esc(state.q)}"></div>
+      ${state.mode === 'board' ? '' : `<div class="seg">${segBtn('open', 'Còn lại')}${segBtn('doing', 'Đang làm')}${segBtn('done', 'Xong')}${segBtn('all', 'Tất cả')}</div>`}
+      ${prios.length ? `<div class="seg"><button class="${state.prio === 'all' ? 'on' : ''}" data-prio="all">Mọi ưu tiên</button>${prios.map(x => `<button class="${state.prio === x ? 'on' : ''}" data-prio="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''}
+      <select class="sel" id="secSel"><option value="all">Mọi milestone</option>${secs.map(s => `<option ${state.section === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+      <div class="seg"><button class="${state.mode === 'list' ? 'on' : ''}" data-mode="list" title="Danh sách">Danh sách</button><button class="${state.mode === 'board' ? 'on' : ''}" data-mode="board" title="Bảng">Bảng</button></div>
+    </div>
+    ${shown.length ? (state.mode === 'board' ? board(shown) : listView(p, shown)) : `<div class="empty">Không có ticket nào khớp bộ lọc.</div>`}`}
+  </div>`;
+}
+
+function listView(p, shown) {
+  const groups = p.sections.map(s => ({ ...s, ts: shown.filter(t => t.section === s.name), all: p.tickets.filter(t => t.section === s.name) })).filter(g => g.ts.length);
+  const orphan = shown.filter(t => !p.sections.some(s => s.name === t.section));
+  if (orphan.length) groups.unshift({ name: '(Chung)', note: '', ts: orphan, all: orphan });
+  return groups.map(g => {
+    const c = counts(g.all), key = p.id + '::' + g.name, closed = state.closed[key];
+    const note = g.note.split('\n').filter(l => l.trim() && !/^---+$/.test(l.trim()) && !/^\s*\|/.test(l)).join(' ');
+    return `<div class="section ${closed ? 'closed' : ''}">
+      <div class="sec-head" data-toggle="${esc(key)}">
+        <svg class="chev" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h3>${md(g.name)}</h3><span class="cnt">${c.total ? `${c.done}/${c.total}` : g.all.length}</span>${c.total ? bar(c) : ''}
+      </div>
+      ${note ? `<div class="note">${md(note)}</div>` : ''}
+      <div class="rows">${g.ts.map(t => row(t, p)).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+const pickAttr = (t, p) => `data-pick="${esc(p.id)}|${esc(t.id)}" title="Bấm để soạn lệnh cho AI · Ctrl+bấm để chọn thêm"`;
+const isPicked = (t, p) => picks.some(x => x.pid === p.id && x.tid === t.id) ? 'picked' : '';
+
+function row(t, p) {
+  return `<div class="row ${t.status} ${isPicked(t, p)}" ${pickAttr(t, p)}>
+    <div class="id">${esc(t.id)}</div>
+    <div class="t">${md(t.title)}
+      ${(t.estimate && t.estimate !== '—') || (t.needs && t.needs !== '—') || state.view === 'all' ? `<div class="meta">
+        ${state.view === 'all' ? `<span class="proj"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${colorOf(p)};margin-right:5px"></span>${esc(p.name)} · ${md(t.section)}</span>` : ''}
+        ${t.estimate && t.estimate !== '—' ? `<span class="tag" title="Ước lượng">${esc(t.estimate)}</span>` : ''}
+        ${t.needs && t.needs !== '—' ? `<span class="needs" title="Cần bạn"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M2.5 14c.8-2.6 3-4 5.5-4s4.7 1.4 5.5 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>${md(t.needs)}</span>` : ''}
+      </div>` : ''}
+    </div>
+    <div class="right">${t.priority ? `<span class="tag ${esc(t.priority)}">${esc(t.priority)}</span>` : ''}${statusBtn(t, p)}</div>
+  </div>`;
+}
+const statusBtn = (t, p) => {
+  if (!t.hasStatus) return `<span class="st none" title="Chưa lên lịch">Chưa lên lịch</span>`;
+  const pd = pending.get(p.id + '|' + t.id);
+  const attrs = `data-pid="${esc(p.id)}" data-tid="${esc(t.id)}" data-line="${t.line}" data-cur="${t.status}"`;
+  return pd
+    ? `<button class="st ${pd.next} pending" ${attrs} title="Sẽ chuyển sang “${ST_LABEL[pd.next]}” — bấm để huỷ hoặc đổi">${ST_LABEL[pd.next]}${pbar(pd)}</button>`
+    : `<button class="st ${t.status}" ${attrs} title="Bấm để đổi trạng thái">${ST_LABEL[t.status]}</button>`;
+};
+
+function board(shown) {
+  const p = projects.find(x => x.id === state.view);
+  const cols = [['todo', 'Chưa làm'], ['doing', 'Đang làm'], ['done', 'Xong']];
+  const nos = shown.filter(t => !t.hasStatus);
+  return `<div class="board">${cols.map(([k, label]) => {
+    const ts = shown.filter(t => t.status === k).concat(k === 'todo' ? nos : []);
+    const lim = k === 'done' ? 30 : 200;
+    return `<div class="col"><h4><span class="st ${k}" style="padding:0;background:none"></span>${label}<span class="n">${ts.length}</span></h4>
+      ${ts.slice(0, lim).map(t => `<div class="card ${isPicked(t, p)}" ${pickAttr(t, p)}><div class="top"><span class="id">${esc(t.id)}</span>${t.priority ? `<span class="tag ${esc(t.priority)}">${esc(t.priority)}</span>` : ''}</div>
+        <div class="t">${md(t.title)}</div><div class="foot"><span class="sec">${md(t.section)}</span>${statusBtn(t, p)}</div></div>`).join('')}
+      ${ts.length > lim ? `<div class="more">+${ts.length - lim} ticket nữa</div>` : ''}</div>`;
+  }).join('')}</div>`;
+}
+
+// ---------- status change + undo ----------
+const undoStack = [];
+async function setTicket(pid, tid, line, status) {
+  try {
+    const upd = await api(`/api/projects/${pid}/tickets/${encodeURIComponent(tid)}`, { method: 'PATCH', body: { status, line } });
+    projects = projects.map(p => p.id === upd.id ? upd : p);
+    render(); return true;
+  } catch (err) { toast(err.message); return false; }
+}
+async function undo() {
+  const u = undoStack.pop();
+  if (!u) return toast('Không còn thao tác để hoàn tác');
+  if (await setTicket(u.pid, u.tid, u.line, u.prev))
+    toast(`Đã hoàn tác: ${u.tid} → ${ST_LABEL[u.prev]}`, undoStack.length ? { label: 'Hoàn tác tiếp', run: undo } : null);
+  else undoStack.push(u);
+}
+
+// ---------- status menu + 5 s delayed apply ----------
+const DELAY = 5000;
+const pending = new Map();            // "pid|tid" -> {pid, tid, line, prev, next, at, timer}
+const pbar = pd => `<i class="pbar" style="animation-duration:${DELAY}ms;animation-delay:-${Math.min(DELAY, DELAY - (pd.at - Date.now()))}ms"></i>`;
+
+function openStatusMenu(btn) {
+  closeStatusMenu();
+  const { pid, tid, line, cur } = btn.dataset, key = pid + '|' + tid, pd = pending.get(key);
+  const shown = pd ? pd.next : cur;
+  const m = document.createElement('div');
+  m.id = 'stMenu';
+  m.innerHTML = `<div class="sm-h mono">${esc(tid)}</div>` +
+    ['todo', 'doing', 'done'].map(s => `<button data-to="${s}" ${s === shown ? 'disabled' : ''}>
+      <span class="st ${s}" style="padding:0;background:none"></span>${ST_LABEL[s]}${s === shown ? '<span class="ck">✓</span>' : ''}</button>`).join('') +
+    (pd ? `<div class="sm-sep"></div><button data-to="cancel" class="sm-cancel">Huỷ thay đổi (giữ “${ST_LABEL[pd.prev]}”)</button>` : '');
+  document.body.appendChild(m);
+  const r = btn.getBoundingClientRect(), mw = m.offsetWidth, mh = m.offsetHeight;
+  m.style.left = Math.max(8, Math.min(r.right - mw, innerWidth - mw - 8)) + 'px';
+  m.style.top = (r.bottom + 6 + mh > innerHeight ? r.top - mh - 6 : r.bottom + 6) + 'px';
+  m.onclick = e => {
+    const b = e.target.closest('[data-to]');
+    if (!b || b.disabled) return;
+    closeStatusMenu();
+    if (b.dataset.to === 'cancel') return cancelPending(key);
+    if (pd && b.dataset.to === pd.prev) return cancelPending(key);   // back to where it was
+    queueStatus({ pid, tid, line: +line, prev: pd ? pd.prev : cur, next: b.dataset.to });
+  };
+  m.querySelector('button:not([disabled])')?.focus();
+}
+function closeStatusMenu() { $('#stMenu')?.remove(); }
+
+function queueStatus(c) {
+  const key = c.pid + '|' + c.tid;
+  clearTimeout(pending.get(key)?.timer);
+  pending.delete(key);                          // re-insert so it becomes the latest
+  c.at = Date.now() + DELAY;
+  c.timer = setTimeout(() => applyPending(key), DELAY);
+  pending.set(key, c);
+  render(); showPendingToast();
+}
+function cancelPending(key) {
+  const pd = pending.get(key);
+  if (!pd) return;
+  clearTimeout(pd.timer); pending.delete(key);
+  render(); toast(`Đã huỷ — ${pd.tid} giữ “${ST_LABEL[pd.prev]}”`);
+}
+async function applyPending(key) {
+  const pd = pending.get(key);
+  if (!pd) return;
+  pending.delete(key);
+  if (await setTicket(pd.pid, pd.tid, pd.line, pd.next)) {
+    undoStack.push({ pid: pd.pid, tid: pd.tid, line: pd.line, prev: pd.prev });
+    if (undoStack.length > 50) undoStack.shift();
+    if (pending.size) showPendingToast();
+    else toast(`Đã lưu: ${pd.tid} → ${ST_LABEL[pd.next]}`, { label: 'Hoàn tác', run: undo });
+  } else render();
+}
+function showPendingToast() {
+  const key = [...pending.keys()].pop();
+  if (!key) return;
+  const pd = pending.get(key), more = pending.size - 1;
+  toast(`${pd.tid} → ${ST_LABEL[pd.next]}${more ? ` (+${more} thay đổi khác)` : ''}`, { label: 'Huỷ', run: () => cancelPending(key) });
+  $('#toast').insertAdjacentHTML('afterbegin', pbar(pd));
+}
+// closing the tab inside the 5 s window still saves the change
+addEventListener('pagehide', () => {
+  for (const pd of pending.values())
+    fetch(`/api/projects/${pd.pid}/tickets/${encodeURIComponent(pd.tid)}`, { method: 'PATCH', keepalive: true,
+      headers: { 'Content-Type': 'application/json', 'X-BV': '1' }, body: JSON.stringify({ status: pd.next, line: pd.line }) });
+});
+
+// ---------- AI prompt composer ----------
+let picks = [];                       // [{pid, tid}]
+const comp = load('bv-comp2', { mode: 'do', status: false, test: false, commit: false, ask: false });
+let compNote = '', compDirty = false;
+const MODES = { do: 'Làm luôn', plan: 'Lập kế hoạch', verify: 'Kiểm tra lại' };
+const dirOf = f => f.replace(/[\\/][^\\/]*$/, '');
+const plain = s => String(s || '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+const findTicket = x => { const p = projects.find(p => p.id === x.pid); return p && { p, t: p.tickets.find(t => t.id === x.tid) }; };
+
+function pick(pid, tid, add) {
+  const i = picks.findIndex(x => x.pid === pid && x.tid === tid);
+  if (add && picks.length && picks[0].pid === pid) {
+    if (i >= 0) picks.splice(i, 1); else picks.push({ pid, tid });
+  } else {
+    picks = [{ pid, tid }];
+    const t = findTicket(picks[0])?.t;
+    comp.mode = t?.status === 'done' ? 'verify' : comp.mode === 'verify' ? 'do' : comp.mode;
+  }
+  compDirty = false;
+  if (!picks.length) return closeDrawer();
+  render(); renderDrawer();
+}
+function closeDrawer() { picks = []; compDirty = false; $('.app').classList.remove('drawer-open'); render(); }
+
+function buildPrompt() {
+  const items = picks.map(findTicket).filter(x => x && x.t);
+  if (!items.length) return '';
+  const p = items[0].p;
+  // group IDs by milestone: "M7: REL-05, REL-08; Event Noel: XMAS-01"
+  const groups = new Map();
+  for (const { t } of items) {
+    const m = (t.section.match(/^(M\d+)\b/) || [])[1] || t.section;
+    groups.set(m, [...(groups.get(m) || []), t.id]);
+  }
+  const ids = [...groups].map(([m, list]) => `${m}: ${list.join(', ')}`).join('; ');
+  const verb = { do: 'làm', plan: 'lập kế hoạch (chưa sửa code)', verify: 'kiểm tra đã xong chưa' }[comp.mode];
+  const rules = [];
+  if (comp.mode === 'do') {
+    if (comp.status) rules.push('Đổi [~] khi bắt đầu, [x] khi xong.');
+    if (comp.test) rules.push('Chạy test trước khi báo xong.');
+    if (comp.commit) rules.push('Commit khi xong.');
+  } else if (comp.mode === 'verify' && comp.status) rules.push('Thiếu thì đổi về [~].');
+  if (comp.ask) rules.push('Việc cần tôi thì dừng lại hỏi.');
+  return [`${p.name} — ${p.file} — ${verb} ${ids}`, rules.join(' '), compNote.trim()].filter(Boolean).join('\n');
+}
+
+function renderDrawer() {
+  const dr = $('#drawer'), items = picks.map(findTicket).filter(x => x && x.t);
+  if (!items.length) return closeDrawer();
+  $('.app').classList.add('drawer-open');
+  const opt = (k, label) => `<label><input type="checkbox" data-opt="${k}" ${comp[k] ? 'checked' : ''}>${label}</label>`;
+  dr.innerHTML = `
+    <div class="dr-head"><h3><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.4 4.4 1.6-4.4 1.6L8 13.5 6.4 9.1 2 7.5l4.4-1.6L8 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Soạn lệnh cho AI</h3>
+      <button class="btn icon ghost" data-dr="close" title="Đóng (Esc)"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
+    <div class="dr-body">
+      <div><div class="dr-label">Ticket · ${items.length} · ${esc(items[0].p.name)}</div>
+        <div class="chips">${items.map(({ t }) => `<div class="chip"><span class="mono">${esc(t.id)}</span><span class="tt">${esc(plain(t.title).replace(/[`*]/g, ''))}</span><button data-unpick="${esc(t.id)}" title="Bỏ chọn">×</button></div>`).join('')}</div>
+        <div class="dr-hint" style="margin-top:6px">Ctrl + bấm ticket khác trong cùng dự án để thêm vào lệnh.</div></div>
+      <div><div class="dr-label">Chế độ</div>
+        <div class="seg full">${Object.entries(MODES).map(([k, v]) => `<button data-cmode="${k}" class="${comp.mode === k ? 'on' : ''}">${v}</button>`).join('')}</div></div>
+      <div class="checks">
+        ${comp.mode !== 'plan' ? opt('status', comp.mode === 'do' ? 'AI tự cập nhật trạng thái trong BACKLOG' : 'Cho phép đổi về [~] nếu chưa đạt') : ''}
+        ${comp.mode === 'do' ? opt('test', 'Chạy test / kiểm tra trước khi báo xong') : ''}
+        ${opt('ask', 'Dừng và hỏi khi gặp việc cần tôi')}
+        ${comp.mode === 'do' ? opt('commit', 'Commit khi xong') : ''}
+      </div>
+      <div><div class="dr-label">Ghi chú thêm</div>
+        <textarea id="drNote" rows="2" placeholder="VD: ưu tiên làm phần UI trước, giữ nguyên API cũ…">${esc(compNote)}</textarea></div>
+      <div style="display:flex;flex-direction:column;flex:1;min-height:0">
+        <div class="dr-label">Lệnh <span class="edited" id="drEdited" ${compDirty ? '' : 'hidden'}>· đã sửa tay</span><span class="grow"></span><button class="linkbtn" data-dr="regen" id="drRegen" ${compDirty ? '' : 'hidden'}>Tạo lại</button></div>
+        <textarea id="drPrompt" spellcheck="false"></textarea></div>
+    </div>
+    <div class="dr-foot"><span class="meta" id="drMeta"></span>
+      <button class="btn primary" data-dr="copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" stroke="currentColor" stroke-width="1.5"/></svg>Sao chép lệnh</button></div>`;
+  const ta = $('#drPrompt');
+  if (!compDirty || !ta.value) ta.value = compDirty && dr._text ? dr._text : buildPrompt();
+  updateMeta();
+}
+function updateMeta() { const v = $('#drPrompt').value; $('#drMeta').textContent = `${v.split('\n').length} dòng · Ctrl+Enter để sao chép`; $('#drawer')._text = v; }
+function refreshPrompt() { if (!compDirty) { $('#drPrompt').value = buildPrompt(); updateMeta(); } }
+
+async function copyPrompt() {
+  const v = $('#drPrompt').value;
+  try { await navigator.clipboard.writeText(v); }
+  catch { const ta = $('#drPrompt'); ta.select(); document.execCommand('copy'); }
+  toast('Đã sao chép — dán vào Claude Code để AI làm');
+}
+
+$('#drawer').addEventListener('click', e => {
+  const b = e.target.closest('[data-dr],[data-cmode],[data-unpick]');
+  if (!b) return;
+  e.stopPropagation();
+  if (b.dataset.unpick) return pick(picks[0].pid, b.dataset.unpick, true);
+  if (b.dataset.cmode) { comp.mode = b.dataset.cmode; compDirty = false; saveComp(); return renderDrawer(); }
+  if (b.dataset.dr === 'close') return closeDrawer();
+  if (b.dataset.dr === 'copy') return copyPrompt();
+  if (b.dataset.dr === 'regen') { compDirty = false; return renderDrawer(); }
+});
+$('#drawer').addEventListener('change', e => { if (e.target.dataset.opt) { comp[e.target.dataset.opt] = e.target.checked; saveComp(); refreshPrompt(); } });
+$('#drawer').addEventListener('input', e => {
+  if (e.target.id === 'drNote') { compNote = e.target.value; refreshPrompt(); }
+  if (e.target.id === 'drPrompt') { compDirty = true; $('#drEdited').hidden = false; $('#drRegen').hidden = false; updateMeta(); }
+});
+function saveComp() { try { localStorage.setItem('bv-comp2', JSON.stringify(comp)); } catch {} }
+
+// ---------- events ----------
+document.addEventListener('click', async e => {
+  if (e.target.closest('#stMenu')) return;
+  if ($('#stMenu') && !e.target.closest('.st[data-tid]')) { closeStatusMenu(); if (!e.target.closest('[data-pick]')) return; }
+  if (e.target.closest('#drawer,#dlg,#toast')) return;
+  const el = e.target.closest('[data-view],[data-status],[data-prio],[data-mode],[data-toggle],[data-act],.st[data-tid],[data-pick]');
+  if (!el) return;
+  if (el.matches('.st[data-tid]')) { e.stopPropagation(); return openStatusMenu(el); }
+  if (el.dataset.pick) {
+    if (String(getSelection())) return;   // user is selecting text
+    const [pid, tid] = el.dataset.pick.split('|');
+    return pick(pid, tid, e.ctrlKey || e.metaKey || e.shiftKey);
+  }
+  if (el.dataset.view) return go(el.dataset.view);
+  if (el.dataset.status) { state.status = el.dataset.status; }
+  else if (el.dataset.prio) { state.prio = el.dataset.prio; }
+  else if (el.dataset.mode) { state.mode = el.dataset.mode; }
+  else if (el.dataset.toggle) { state.closed[el.dataset.toggle] = !state.closed[el.dataset.toggle]; el.parentElement.classList.toggle('closed'); persist(); return; }
+  else if (el.dataset.act === 'build') return openBuild(projects.find(p => p.id === state.view));
+  else if (el.dataset.act === 'edit') return openDialog(projects.find(p => p.id === state.view));
+  else if (el.dataset.act === 'add') return openDialog();
+  else if (el.dataset.act === 'menu') return $('#aside').classList.toggle('open');
+  persist(); render();
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'q') { state.q = e.target.value; const pos = e.target.selectionStart; render(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); }
+});
+document.addEventListener('change', e => { if (e.target.id === 'secSel') { state.section = e.target.value; persist(); render(); } });
+document.addEventListener('keydown', e => {
+  const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+  if (e.key === 'Escape' && $('#stMenu')) { closeStatusMenu(); return; }
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing && !$('#dlg').open) {
+    e.preventDefault();
+    const last = [...pending.keys()].pop();          // cancel a waiting change first
+    return last ? cancelPending(last) : undo();
+  }
+  if (picks.length && (e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); copyPrompt(); return; }
+  if (picks.length && e.key === 'Escape' && !$('#dlg').open && document.activeElement.id !== 'q') { closeDrawer(); return; }
+  if (e.key === '/' && !typing && $('#q')) { e.preventDefault(); $('#q').focus(); }
+  if (e.key === 'Escape' && document.activeElement.id === 'q') { state.q = ''; render(); }
+});
+$('#addBtn').onclick = () => openDialog();
+$('#themeBtn').onclick = () => {
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const cur = document.documentElement.dataset.theme || (dark ? 'dark' : 'light');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('bv-theme', next); } catch {}
+};
+try { const t = localStorage.getItem('bv-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+
+// ---------- add / edit dialog ----------
+async function openDialog(p) {
+  const dlg = $('#dlg'), f = $('#dlgForm');
+  let color = p ? colorOf(p) : COLORS[projects.length % COLORS.length];
+  f.innerHTML = `<h3>${p ? 'Sửa dự án' : 'Thêm dự án'}</h3>
+    <div class="field"><label>Tên dự án</label><input name="name" value="${esc(p?.name || '')}" placeholder="${p ? '' : 'Để trống = lấy từ tiêu đề file'}"></div>
+    <div class="field"><label>Đường dẫn file BACKLOG (hoặc thư mục dự án)</label><input name="file" class="mono" value="${esc(p?.file || '')}" placeholder="D:\\Work\\my-game\\BACKLOG.md" ${p ? '' : 'required'}>
+      <div class="hint">File Markdown có bảng cột <code>ID</code> · <code>Việc</code> · <code>Ưu tiên</code> · <code>Trạng thái</code> (<code>[ ]</code> <code>[~]</code> <code>[x]</code>).</div>
+      <div class="sugg" id="sugg"></div></div>
+    <div class="field"><label>Lệnh build release</label><input name="build" class="mono" value="${esc(p?.build || '')}" placeholder="Để trống = tự dùng tools\\export_release.ps1 nếu có">
+      <div class="hint">Chạy trong thư mục dự án. VD: <code>powershell -File tools\\export_release.ps1</code></div></div>
+    <div class="field"><label>Màu</label><div class="swatches">${COLORS.map(c => `<button type="button" data-c="${c}" style="background:${c}" class="${c === color ? 'on' : ''}"></button>`).join('')}</div></div>
+    <div class="actions">${p ? '<button type="button" class="btn danger" id="delBtn">Xoá khỏi danh sách</button>' : ''}<span class="grow"></span>
+      <button type="button" class="btn" id="cancelBtn">Huỷ</button><button class="btn primary" value="ok">${p ? 'Lưu' : 'Thêm'}</button></div>`;
+  f.querySelectorAll('.swatches button').forEach(b => b.onclick = () => { color = b.dataset.c; f.querySelectorAll('.swatches button').forEach(x => x.classList.toggle('on', x === b)); });
+  $('#cancelBtn').onclick = () => dlg.close();
+  if (p) $('#delBtn').onclick = async () => {
+    if (!confirm(`Xoá "${p.name}" khỏi danh sách? (File BACKLOG không bị xoá)`)) return;
+    await api('/api/projects/' + p.id, { method: 'DELETE' }); dlg.close(); state.view = 'all'; await refresh(); toast('Đã xoá dự án');
+  };
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const body = { name: f.elements.namedItem('name').value, file: f.elements.namedItem('file').value, build: f.elements.namedItem('build').value, color };
+    try {
+      const res = p ? await api('/api/projects/' + p.id, { method: 'PUT', body }) : await api('/api/projects', { method: 'POST', body });
+      dlg.close(); state.view = res.id; await refresh(); toast(p ? 'Đã lưu' : 'Đã thêm dự án');
+    } catch (err) { toast(err.message); }
+  };
+  dlg.showModal();
+  if (!p) {
+    const found = await api('/api/scan').catch(() => []);
+    $('#sugg').innerHTML = found.length ? `<div class="hint">Tìm thấy trong thư mục làm việc:</div>` + found.map(x => `<button type="button" class="mono">${esc(x)}</button>`).join('') : '';
+    $('#sugg').querySelectorAll('button').forEach(b => b.onclick = () => { f.elements.namedItem('file').value = b.textContent; });
+  }
+}
+
+// ---------- release build ----------
+let buildPid = null, buildTimer = null, buildWasRunning = false;
+const bumpName = n => n && /\d+$/.test(n) ? n.replace(/\d+$/, d => +d + 1) : n;
+const fmtDur = ms => { const s = Math.round(ms / 1000); return s < 60 ? `${s} s` : `${Math.floor(s / 60)} ph ${s % 60} s`; };
+
+async function openBuild(p) {
+  buildPid = p.id;
+  const info = await api(`/api/projects/${p.id}/build`).catch(e => (toast(e.message), null));
+  if (!info) return;
+  const v = info.version;
+  $('#bdlgBody').innerHTML = `
+    <h3>Build release — ${esc(p.name)}</h3>
+    <div class="b-cmd mono">${info.cmd ? `&gt; ${esc(info.cmd)}${info.auto ? ' <span class="tag">tự phát hiện</span>' : ''}` : '<span style="color:var(--p0)">Chưa có lệnh build. Bấm Sửa dự án → "Lệnh build release".</span>'}</div>
+    ${v ? `<div class="b-ver">
+      <span>Hiện tại <b class="mono">${esc(v.name ?? '?')}</b> (code <b class="mono">${v.code ?? '?'}</b>)</span>
+      <label><input type="checkbox" id="bBump" checked>Tăng version trước khi build</label>
+      <label>name <input type="text" id="bName" value="${esc(bumpName(v.name) ?? '')}"></label>
+      <label>code <input type="number" id="bCode" value="${v.code != null ? v.code + 1 : ''}"></label>
+    </div>` : ''}
+    <pre class="b-log" id="bLog">${esc(info.log || 'Chưa build lần nào trong phiên này.')}</pre>
+    <div class="b-status" id="bStatus"></div>
+    <div class="actions">
+      <button type="button" class="btn danger" id="bStop" hidden>Dừng build</button><span class="grow"></span>
+      <button type="button" class="btn" id="bClose">Đóng</button>
+      <button type="button" class="btn primary" id="bStart" ${info.cmd ? '' : 'disabled'}>Build</button>
+    </div>`;
+  $('#bClose').onclick = () => $('#bdlg').close();
+  $('#bStop').onclick = async () => { if (confirm('Dừng build đang chạy?')) showBuild(await api(`/api/projects/${p.id}/build`, { method: 'DELETE' })); };
+  $('#bStart').onclick = async () => {
+    const bump = v && $('#bBump').checked ? { name: $('#bName').value.trim() || v.name, code: +$('#bCode').value || v.code } : null;
+    if (bump && bump.code <= v.code && !confirm(`Code ${bump.code} không lớn hơn ${v.code} — Google Play sẽ từ chối. Vẫn build?`)) return;
+    try { $('#bLog').textContent = ''; showBuild(await api(`/api/projects/${p.id}/build`, { method: 'POST', body: { bump } })); refresh(true); }
+    catch (e) { toast(e.message); }
+  };
+  if (v) $('#bBump').onchange = e => { $('#bName').disabled = $('#bCode').disabled = !e.target.checked; };
+  showBuild(info);
+  if (!$('#bdlg').open) $('#bdlg').showModal();
+}
+
+function showBuild(info) {
+  buildWasRunning = info.running;
+  const log = $('#bLog');
+  if (log && info.log) { const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40; log.textContent = info.log; if (atEnd) log.scrollTop = log.scrollHeight; }
+  const st = $('#bStatus');
+  if (st) st.innerHTML = info.running
+    ? `<span class="spin" style="color:var(--doing)"></span>Đang build… ${fmtDur(Date.now() - info.startedAt)}`
+    : info.endedAt
+      ? (info.exitCode === 0
+        ? `<span class="ok">✓ Build xong</span> sau ${fmtDur(info.endedAt - info.startedAt)}${info.bumped ? ` · version ${esc(info.bumped.to.name)} (code ${info.bumped.to.code})` : ''}`
+        : `<span class="bad">✕ Build lỗi</span> (mã ${info.exitCode})${info.reverted ? ' · đã trả version về như cũ' : ''}`)
+      : '';
+  if ($('#bStop')) $('#bStop').hidden = !info.running;
+  if ($('#bStart')) $('#bStart').disabled = info.running || !info.cmd;
+  clearTimeout(buildTimer);
+  if (info.running) buildTimer = setTimeout(pollBuild, 1000);
+}
+async function pollBuild() {
+  const info = await api(`/api/projects/${buildPid}/build`).catch(() => null);
+  if (!info) return;
+  const finished = buildWasRunning && !info.running;
+  if ($('#bdlg').open) showBuild(info);
+  else if (info.running) { buildWasRunning = true; buildTimer = setTimeout(pollBuild, 3000); }
+  if (finished) {
+    buildWasRunning = false; refresh(true);
+    const bp = projects.find(p => p.id === buildPid);
+    if ($('#bdlg').open && bp) openBuild(bp);   // show the new current version
+    if (!$('#bdlg').open) toast(info.exitCode === 0 ? `Build ${projects.find(p => p.id === buildPid)?.name} xong ✓` : 'Build lỗi — mở lại để xem log');
+  }
+}
+$('#bdlg').addEventListener('close', () => { if (buildWasRunning) { clearTimeout(buildTimer); buildTimer = setTimeout(pollBuild, 3000); } });
+
+// ---------- server lifecycle ----------
+// Heartbeat so the server (started with --auto-exit) quits once every tab is closed.
+const clientId = Math.random().toString(36).slice(2);
+const ping = () => fetch('/api/ping?c=' + clientId).catch(() => {});
+ping(); setInterval(ping, 10000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) ping(); });
+addEventListener('pagehide', () => navigator.sendBeacon('/api/bye?c=' + clientId));
+addEventListener('pageshow', e => { if (e.persisted) ping(); });
+
+$('#powerBtn').onclick = async () => {
+  if (!confirm('Tắt server Backlog Viewer?\nMở lại bằng shortcut hoặc start.cmd.')) return;
+  await fetch('/api/shutdown', { method: 'POST', headers: { 'X-BV': '1' } }).catch(() => {});
+  document.body.innerHTML = `<div style="height:100vh;display:grid;place-items:center;text-align:center;color:var(--muted)">
+    <div><div style="font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px">Đã tắt server</div>
+    Có thể đóng tab này. Mở lại bằng shortcut <b>Backlog Viewer</b>.</div></div>`;
+};
+
+refresh();
+setInterval(() => { if (!document.hidden && !$('#dlg').open && document.activeElement.id !== 'q') refresh(true); }, 4000);
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# per-machine config and shortcut
+projects.json
+*.lnk
+node_modules/
