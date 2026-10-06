@@ -14,15 +14,29 @@ On first run it scans the parent folder for `BACKLOG*.md` files and stores the p
 
 ## Backlog format
 
-Markdown with `##` sections (milestones) and tables that have an `ID` column. Recognised columns: `ID`, `Việc`/`Task`, `Ưu tiên`/`Priority`, `Ước lượng`/`Estimate`, `Cần bạn`/`Owner`, `Trạng thái`/`Status` with `[ ]` todo, `[~]` in progress, `[x]` done.
+Markdown with `##` sections (milestones) and tables that have an `ID` column. A table without an `ID` column is ignored. The first `#` heading is the project name and the first paragraph under it is its description.
+
+| Column | Meaning | Also accepted |
+|---|---|---|
+| `ID` | Ticket id, e.g. `CORE-01` (required) | |
+| `Task` | What to do | `Title`, `Description`, `Việc` |
+| `Priority` | `P0`, `P1`, `P2`… | `Prio`, `Ưu tiên` |
+| `Estimate` | Size, e.g. `S`, `M`, `L` | `Est`, `Effort`, `Ước lượng` |
+| `Needs you` | What only a person can do (device, account, review) | `Owner`, `Assignee`, `Cần bạn` |
+| `Status` | `[ ]` to do · `[~]` in progress · `[x]` done | `State`, `Trạng thái` |
+
+Column names are case-insensitive and can be in any order; only `ID` is required. Rows without a `Status` column show as "Unscheduled".
 
 ```
 ## M1 — Core gameplay
 
-| ID | Việc | Ưu tiên | Ước lượng | Trạng thái |
-|---|---|---|---|---|
-| CORE-01 | Tile model | P0 | S | [x] |
+| ID | Task | Priority | Estimate | Needs you | Status |
+|---|---|---|---|---|---|
+| CORE-01 | Tile model | P0 | S | — | [x] |
+| CORE-02 | Play on a real phone | P1 | S | test device | [ ] |
 ```
+
+Changing a status in the app rewrites only the `[ ]` / `[~]` / `[x]` cell of that row.
 
 ## Features
 

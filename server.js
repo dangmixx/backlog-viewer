@@ -86,7 +86,7 @@ const COLS = {
   title: /^(việc|task|title|tên|mô tả|description)$/i,
   priority: /^(ưu tiên|priority|prio)$/i,
   estimate: /^(ước lượng|estimate|est|effort)$/i,
-  needs: /^(cần bạn|owner|người làm|assignee|cần)$/i,
+  needs: /^(needs you|cần bạn|owner|người làm|assignee|cần)$/i,
   status: /^(trạng thái|status|state)$/i,
 };
 const splitRow = line => {
