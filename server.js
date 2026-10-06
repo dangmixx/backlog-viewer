@@ -19,6 +19,7 @@ const MSG = {
     reverted: (n, c) => `build lỗi — đã trả version về ${n} (${c})`, finished: (c, s) => `kết thúc, mã thoát ${c} sau ${s} s`,
     stopped: 'đã bấm dừng', cantRead: 'Không đọc được file', noProject: 'Không có dự án',
     noBacklogInDir: 'Thư mục không có file BACKLOG*.md', noFile: 'File không tồn tại',
+    noPicker: 'Chỉ chọn file được trên Windows — hãy dán đường dẫn', pickTitle: 'Chọn file BACKLOG',
   },
   en: {
     noTicket: id => 'Ticket not found: ' + id, noStatusCol: 'This ticket has no status column',
@@ -27,6 +28,7 @@ const MSG = {
     reverted: (n, c) => `build failed — version restored to ${n} (${c})`, finished: (c, s) => `finished, exit code ${c} after ${s} s`,
     stopped: 'stop requested', cantRead: 'Cannot read the file', noProject: 'No such project',
     noBacklogInDir: 'No BACKLOG*.md file in that folder', noFile: 'File not found',
+    noPicker: 'The file picker only works on Windows — paste the path', pickTitle: 'Choose a BACKLOG file',
   },
 };
 const msg = (lang, k, ...a) => { const v = (MSG[lang] || MSG.vi)[k]; return typeof v === 'function' ? v(...a) : v; };
@@ -266,6 +268,30 @@ function stopBuild(p) {
 }
 const anyBuildRunning = () => [...builds.values()].some(b => b.running);
 
+// ---------- native file picker (Windows) ----------
+// The page can't learn a file's full path from <input type="file">, so the server shows the
+// OS dialog. A hidden TopMost form owns it so it opens in front of the browser.
+function pickFile(dir, lang) {
+  let start = ROOT;
+  try { if (dir) { const d = path.resolve(String(dir)); start = fs.statSync(d).isDirectory() ? d : path.dirname(d); } } catch {}
+  const q = s => "'" + String(s).replace(/'/g, "''") + "'";
+  const ps = `
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+Add-Type -AssemblyName System.Windows.Forms
+$owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; Opacity = 0 }
+$owner.Show(); $owner.Activate()
+$d = New-Object System.Windows.Forms.OpenFileDialog
+$d.Title = ${q(msg(lang, 'pickTitle'))}
+$d.Filter = 'BACKLOG (*.md)|*.md|All files (*.*)|*.*'
+$d.InitialDirectory = ${q(start)}
+if ($d.ShowDialog($owner) -eq 'OK') { $d.FileName }
+$owner.Close()`;
+  return new Promise(ok => {
+    execFile('powershell', ['-NoProfile', '-STA', '-Command', ps], { windowsHide: true, encoding: 'utf8', timeout: 10 * 60 * 1000 },
+      (err, out) => ok(err ? null : (out.trim() || null)));
+  });
+}
+
 // ---------- auto exit (node server.js --auto-exit) ----------
 // Exit a few seconds after the last browser tab closes. Hidden tabs may only
 // ping once a minute (browser throttling), so stale entries expire after 3 min.
@@ -377,6 +403,12 @@ http.createServer(async (req, res) => {
         const b = await readBody(req);
         setStatus(p.file, decodeURIComponent(parts[4]), Number(b.line), b.status, lang);
         return send(res, 200, projectPayload(p, lang));
+      }
+      // POST /api/pick-file {dir} → native Windows "Open file" dialog, returns {path} (null = cancelled)
+      if (parts[1] === 'pick-file' && req.method === 'POST') {
+        if (process.platform !== 'win32') return send(res, 501, { error: msg(lang, 'noPicker') });
+        const b = await readBody(req);
+        return send(res, 200, { path: await pickFile(b.dir, lang) });
       }
       // GET /api/scan → backlog files not yet added
       if (parts[1] === 'scan') {

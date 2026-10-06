@@ -156,6 +156,8 @@ dialog h3{margin:0 0 16px;font-size:17px}
 .field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
 .field input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 11px;outline:none}
 .field input:focus{border-color:var(--accent)}
+.pick-row{display:flex;gap:8px}
+.pick-row input{flex:1;min-width:0}
 .field .hint{font-size:12px;color:var(--faint);margin-top:4px}
 .swatches{display:flex;gap:8px;flex-wrap:wrap}
 .swatches button{width:26px;height:26px;border-radius:8px;border:2px solid transparent;cursor:pointer}
@@ -321,7 +323,7 @@ const I18N = {
     rStatus: 'Đổi [~] khi bắt đầu, [x] khi xong.', rTest: 'Chạy test trước khi báo xong.', rCommit: 'Commit khi xong.',
     rRevert: 'Thiếu thì đổi về [~].', rAsk: 'Việc cần tôi thì dừng lại hỏi.',
     editProject: 'Sửa dự án', name: 'Tên dự án', namePh: 'Để trống = lấy từ tiêu đề file',
-    filePath: 'Đường dẫn file BACKLOG (hoặc thư mục dự án)',
+    filePath: 'Đường dẫn file BACKLOG (hoặc thư mục dự án)', browse: 'Chọn file…', picking: 'Đang mở…',
     fileHint: 'File Markdown có bảng cột <code>ID</code> · <code>Task</code> · <code>Priority</code> · <code>Status</code> (<code>[ ]</code> <code>[~]</code> <code>[x]</code>).',
     buildCmd: 'Lệnh build release', buildCmdPh: 'Để trống = tự dùng tools\\export_release.ps1 nếu có',
     buildCmdHint: 'Chạy trong thư mục dự án. VD: <code>powershell -File tools\\export_release.ps1</code>',
@@ -366,7 +368,7 @@ const I18N = {
     rStatus: 'Set [~] when starting, [x] when done.', rTest: 'Run the tests before reporting done.', rCommit: 'Commit when done.',
     rRevert: 'If incomplete, set it back to [~].', rAsk: 'Stop and ask me for anything only I can do.',
     editProject: 'Edit project', name: 'Project name', namePh: 'Empty = take it from the file title',
-    filePath: 'BACKLOG file path (or project folder)',
+    filePath: 'BACKLOG file path (or project folder)', browse: 'Browse…', picking: 'Opening…',
     fileHint: 'Markdown with table columns <code>ID</code> · <code>Task</code> · <code>Priority</code> · <code>Status</code> (<code>[ ]</code> <code>[~]</code> <code>[x]</code>).',
     buildCmd: 'Release build command', buildCmdPh: 'Empty = use tools\\export_release.ps1 when present',
     buildCmdHint: 'Runs in the project folder. e.g. <code>powershell -File tools\\export_release.ps1</code>',
@@ -845,7 +847,9 @@ async function openDialog(p) {
   let color = p ? colorOf(p) : COLORS[projects.length % COLORS.length];
   f.innerHTML = `<h3>${p ? T('editProject') : T('addProject')}</h3>
     <div class="field"><label>${T('name')}</label><input name="name" value="${esc(p?.name || '')}" placeholder="${p ? '' : T('namePh')}"></div>
-    <div class="field"><label>${T('filePath')}</label><input name="file" class="mono" value="${esc(p?.file || '')}" placeholder="D:\\Work\\my-game\\BACKLOG.md" ${p ? '' : 'required'}>
+    <div class="field"><label>${T('filePath')}</label>
+      <div class="pick-row"><input name="file" class="mono" value="${esc(p?.file || '')}" placeholder="D:\\Work\\my-game\\BACKLOG.md" ${p ? '' : 'required'}>
+        <button type="button" class="btn" id="pickBtn"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>${T('browse')}</button></div>
       <div class="hint">${T('fileHint')}</div>
       <div class="sugg" id="sugg"></div></div>
     <div class="field"><label>${T('buildCmd')}</label><input name="build" class="mono" value="${esc(p?.build || '')}" placeholder="${T('buildCmdPh')}">
@@ -855,6 +859,19 @@ async function openDialog(p) {
       <button type="button" class="btn" id="cancelBtn">${T('cancel')}</button><button class="btn primary" value="ok">${p ? T('save') : T('add')}</button></div>`;
   f.querySelectorAll('.swatches button').forEach(b => b.onclick = () => { color = b.dataset.c; f.querySelectorAll('.swatches button').forEach(x => x.classList.toggle('on', x === b)); });
   $('#cancelBtn').onclick = () => dlg.close();
+  $('#pickBtn').onclick = async () => {
+    const input = f.elements.namedItem('file'), btn = $('#pickBtn'), label = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = `<span class="spin"></span>${T('picking')}`;
+    try {
+      const r = await api('/api/pick-file', { method: 'POST', body: { dir: input.value.trim() } });
+      if (r.path) {
+        input.value = r.path;
+        const nm = f.elements.namedItem('name');      // suggest a name from the project folder
+        if (!nm.value.trim() && !p) nm.placeholder = r.path.split(/[\\/]/).slice(-2, -1)[0] || nm.placeholder;
+      }
+    } catch (err) { toast(err.message); }
+    btn.disabled = false; btn.innerHTML = label; input.focus();
+  };
   if (p) $('#delBtn').onclick = async () => {
     if (!confirm(T('confirmRemove', p.name))) return;
     await api('/api/projects/' + p.id, { method: 'DELETE' }); dlg.close(); state.view = 'all'; await refresh(); toast(T('removed'));
