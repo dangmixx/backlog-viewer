@@ -95,6 +95,12 @@ select.sel{border:1px solid var(--line);background:var(--panel);border-radius:8p
 .sec-head .chev{transition:transform .15s;color:var(--faint)}
 .section.closed .chev{transform:rotate(-90deg)}
 .section.closed .rows,.section.closed .note{display:none}
+.ms-btn{border:0;background:none;color:var(--faint);padding:4px 6px;border-radius:6px;cursor:pointer;display:inline-flex;opacity:.55}
+.sec-head:hover .ms-btn{opacity:1}
+.ms-btn:hover{color:var(--accent);background:var(--accent-soft)}
+.section.ms-on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.section.ms-on .ms-btn{opacity:1;color:var(--accent)}
+.ms-tag{display:inline-flex;align-items:center;gap:4px;color:var(--accent);margin-right:6px;text-transform:none;letter-spacing:0}
 .sec-head .cnt{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .sec-head .bar{width:90px}
 .note{padding:0 16px 10px 42px;color:var(--muted);font-size:13px}
@@ -320,6 +326,8 @@ const I18N = {
     prompt: 'Lệnh', edited: '· đã sửa tay', regen: 'Tạo lại', copy: 'Sao chép lệnh',
     lines: n => `${n} dòng · Ctrl+Enter để sao chép`, copied: 'Đã sao chép — dán vào Claude Code để AI làm',
     pVerb: { do: 'làm', plan: 'lập kế hoạch (chưa sửa code)', verify: 'kiểm tra đã xong chưa' },
+    pVerbMs: { do: 'làm hết', plan: 'lập kế hoạch cho hết (chưa sửa code)', verify: 'kiểm tra hết' },
+    msTitle: 'Soạn lệnh cho AI làm hết milestone này', msWhole: n => `Cả milestone · ${n} ticket`, msOffer: (m, n) => `+ Cả milestone ${m} (${n} ticket còn lại)`,
     rStatus: 'Đổi [~] khi bắt đầu, [x] khi xong.', rTest: 'Chạy test trước khi báo xong.', rCommit: 'Commit khi xong.',
     rRevert: 'Thiếu thì đổi về [~].', rAsk: 'Việc cần tôi thì dừng lại hỏi.',
     editProject: 'Sửa dự án', name: 'Tên dự án', namePh: 'Để trống = lấy từ tiêu đề file',
@@ -365,6 +373,8 @@ const I18N = {
     prompt: 'Prompt', edited: '· edited', regen: 'Regenerate', copy: 'Copy prompt',
     lines: n => `${n} line${n === 1 ? '' : 's'} · Ctrl+Enter to copy`, copied: 'Copied — paste it into Claude Code',
     pVerb: { do: 'do', plan: 'plan (no code changes yet)', verify: 'verify it is really done' },
+    pVerbMs: { do: 'do all of', plan: 'plan all of (no code changes yet)', verify: 'verify all of' },
+    msTitle: 'Write an AI prompt for this whole milestone', msWhole: n => `Whole milestone · ${n} ticket${n === 1 ? '' : 's'}`, msOffer: (m, n) => `+ Whole milestone ${m} (${n} open)`,
     rStatus: 'Set [~] when starting, [x] when done.', rTest: 'Run the tests before reporting done.', rCommit: 'Commit when done.',
     rRevert: 'If incomplete, set it back to [~].', rAsk: 'Stop and ask me for anything only I can do.',
     editProject: 'Edit project', name: 'Project name', namePh: 'Empty = take it from the file title',
@@ -546,10 +556,12 @@ function listView(p, shown) {
   return groups.map(g => {
     const c = counts(g.all), key = p.id + '::' + g.name, closed = state.closed[key];
     const note = g.note.split('\n').filter(l => l.trim() && !/^---+$/.test(l.trim()) && !/^\s*\|/.test(l)).join(' ');
-    return `<div class="section ${closed ? 'closed' : ''}">
+    const msOn = compMs && compMs.pid === p.id && compMs.section === g.name;
+    return `<div class="section ${closed ? 'closed' : ''} ${msOn ? 'ms-on' : ''}">
       <div class="sec-head" data-toggle="${esc(key)}">
         <svg class="chev" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <h3>${g.name === '(Chung)' ? T('general') : md(g.name)}</h3><span class="cnt">${c.total ? `${c.done}/${c.total}` : g.all.length}</span>${c.total ? bar(c) : ''}
+        <h3>${g.name === '(Chung)' ? T('general') : md(g.name)}</h3>
+        <button class="ms-btn" data-ms="${esc(p.id)}|${esc(g.name)}" title="${T('msTitle')}">${SPARK}</button><span class="cnt">${c.total ? `${c.done}/${c.total}` : g.all.length}</span>${c.total ? bar(c) : ''}
       </div>
       ${note ? `<div class="note">${md(note)}</div>` : ''}
       <div class="rows">${g.ts.map(t => row(t, p)).join('')}</div>
@@ -693,7 +705,25 @@ const dirOf = f => f.replace(/[\\/][^\\/]*$/, '');
 const plain = s => String(s || '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 const findTicket = x => { const p = projects.find(p => p.id === x.pid); return p && { p, t: p.tickets.find(t => t.id === x.tid) }; };
 
+// ---- whole milestone ----
+let compMs = null;                    // {pid, section} while composing for a whole milestone
+const SPARK = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.4 4.4 1.6-4.4 1.6L8 13.5 6.4 9.1 2 7.5l4.4-1.6L8 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+const msCode = sec => (sec.match(/^(M\d+)\b/) || [])[1] || sec;
+const isOpen = t => t.status === 'todo' || t.status === 'doing' || !t.hasStatus;
+function pickMilestone(pid, section) {
+  const p = projects.find(x => x.id === pid);
+  if (!p) return;
+  const all = p.tickets.filter(t => t.section === section);
+  let ts = all.filter(isOpen);
+  if (ts.length) comp.mode = comp.mode === 'verify' ? 'do' : comp.mode;
+  else { ts = all; comp.mode = 'verify'; }     // everything done → check it instead
+  picks = ts.map(t => ({ pid, tid: t.id }));
+  compMs = { pid, section }; compDirty = false;
+  render(); renderDrawer();
+}
+
 function pick(pid, tid, add) {
+  compMs = null;                      // picking single tickets leaves milestone mode
   const i = picks.findIndex(x => x.pid === pid && x.tid === tid);
   if (add && picks.length && picks[0].pid === pid) {
     if (i >= 0) picks.splice(i, 1); else picks.push({ pid, tid });
@@ -706,7 +736,7 @@ function pick(pid, tid, add) {
   if (!picks.length) return closeDrawer();
   render(); renderDrawer();
 }
-function closeDrawer() { picks = []; compDirty = false; $('.app').classList.remove('drawer-open'); render(); }
+function closeDrawer() { picks = []; compMs = null; compDirty = false; $('.app').classList.remove('drawer-open'); render(); }
 
 function buildPrompt() {
   const items = picks.map(findTicket).filter(x => x && x.t);
@@ -719,7 +749,7 @@ function buildPrompt() {
     groups.set(m, [...(groups.get(m) || []), t.id]);
   }
   const ids = [...groups].map(([m, list]) => `${m}: ${list.join(', ')}`).join('; ');
-  const verb = T('pVerb')[comp.mode];
+  const verb = (compMs ? T('pVerbMs') : T('pVerb'))[comp.mode];
   const rules = [];
   if (comp.mode === 'do') {
     if (comp.status) rules.push(T('rStatus'));
@@ -727,7 +757,19 @@ function buildPrompt() {
     if (comp.commit) rules.push(T('rCommit'));
   } else if (comp.mode === 'verify' && comp.status) rules.push(T('rRevert'));
   if (comp.ask) rules.push(T('rAsk'));
-  return [`${p.name} — ${p.file} — ${verb} ${ids}`, rules.join(' '), compNote.trim()].filter(Boolean).join('\n');
+  // whole milestone → just its code; the agent reads which tickets are still open from BACKLOG.md
+  const what = compMs ? msCode(compMs.section) : ids;
+  return [`${p.name} — ${p.file} — ${verb} ${what}`, rules.join(' '), compNote.trim()].filter(Boolean).join('\n');
+}
+
+// "+ Whole milestone M7 (5 open)" when the picks all sit in one milestone that has more open tickets
+function msOffer(items) {
+  if (compMs) return '';
+  const sec = items[0].t.section;
+  if (!items.every(x => x.t.section === sec)) return '';
+  const open = items[0].p.tickets.filter(t => t.section === sec && isOpen(t));
+  if (open.length <= items.length && open.every(t => items.some(x => x.t.id === t.id))) return '';
+  return `<button class="linkbtn" style="margin-top:8px" data-dr="ms">${T('msOffer', msCode(sec), open.length)}</button>`;
 }
 
 function renderDrawer() {
@@ -739,8 +781,11 @@ function renderDrawer() {
     <div class="dr-head"><h3><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.4 4.4 1.6-4.4 1.6L8 13.5 6.4 9.1 2 7.5l4.4-1.6L8 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>${T('composer')}</h3>
       <button class="btn icon ghost" data-dr="close" title="${T('closeEsc')}"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
     <div class="dr-body">
-      <div><div class="dr-label">Ticket · ${items.length} · ${esc(items[0].p.name)}</div>
+      <div><div class="dr-label">${compMs
+        ? `<span class="ms-tag">${SPARK}${esc(msCode(compMs.section))}</span>${T('msWhole', items.length)}`
+        : `Ticket · ${items.length}`} · ${esc(items[0].p.name)}</div>
         <div class="chips">${items.map(({ t }) => `<div class="chip"><span class="mono">${esc(t.id)}</span><span class="tt">${esc(plain(t.title).replace(/[`*]/g, ''))}</span><button data-unpick="${esc(t.id)}" title="${T('unpick')}">×</button></div>`).join('')}</div>
+        ${msOffer(items)}
         <div class="dr-hint" style="margin-top:6px">${T('pickHint')}</div></div>
       <div><div class="dr-label">${T('mode')}</div>
         <div class="seg full">${Object.entries(MODES()).map(([k, v]) => `<button data-cmode="${k}" class="${comp.mode === k ? 'on' : ''}">${v}</button>`).join('')}</div></div>
@@ -779,6 +824,7 @@ $('#drawer').addEventListener('click', e => {
   if (b.dataset.unpick) return pick(picks[0].pid, b.dataset.unpick, true);
   if (b.dataset.cmode) { comp.mode = b.dataset.cmode; compDirty = false; saveComp(); return renderDrawer(); }
   if (b.dataset.dr === 'close') return closeDrawer();
+  if (b.dataset.dr === 'ms') { const x = findTicket(picks[0]); return x && pickMilestone(x.p.id, x.t.section); }
   if (b.dataset.dr === 'copy') return copyPrompt();
   if (b.dataset.dr === 'regen') { compDirty = false; return renderDrawer(); }
 });
@@ -794,7 +840,7 @@ document.addEventListener('click', async e => {
   if (e.target.closest('#stMenu')) return;
   if ($('#stMenu') && !e.target.closest('.st[data-tid]')) { closeStatusMenu(); if (!e.target.closest('[data-pick]')) return; }
   if (e.target.closest('#drawer,#dlg,#toast')) return;
-  const el = e.target.closest('[data-view],[data-status],[data-prio],[data-mode],[data-toggle],[data-act],.st[data-tid],[data-pick]');
+  const el = e.target.closest('[data-view],[data-status],[data-prio],[data-mode],[data-toggle],[data-act],.st[data-tid],[data-pick],[data-ms]');
   if (!el) return;
   if (el.matches('.st[data-tid]')) { e.stopPropagation(); return openStatusMenu(el); }
   if (el.dataset.pick) {
@@ -802,6 +848,7 @@ document.addEventListener('click', async e => {
     const [pid, tid] = el.dataset.pick.split('|');
     return pick(pid, tid, e.ctrlKey || e.metaKey || e.shiftKey);
   }
+  if (el.dataset.ms) { const i = el.dataset.ms.indexOf('|'); return pickMilestone(el.dataset.ms.slice(0, i), el.dataset.ms.slice(i + 1)); }
   if (el.dataset.view) return go(el.dataset.view);
   if (el.dataset.status) { state.status = el.dataset.status; }
   else if (el.dataset.prio) { state.prio = el.dataset.prio; }
