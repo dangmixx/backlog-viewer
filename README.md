@@ -32,6 +32,7 @@ Markdown with `##` sections (milestones) and tables that have an `ID` column. Re
 - Click a ticket to compose a one-line prompt for an AI coding agent (Ctrl+click to add tickets)
 - Release build button: runs the project's build command (or `tools/export_release.ps1`), bumps `version/code` and `version/name` in a Godot `export_presets.cfg` first and restores them if the build fails
 - Add / edit / remove projects, light and dark theme
+- Vietnamese and English UI (VI / EN button, remembered per browser); the AI prompt and server messages follow it
 
 The server listens on 127.0.0.1 only. Requests that change anything must carry the `X-BV: 1` header, which the page sends.
 

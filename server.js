@@ -10,6 +10,27 @@ const DATA = path.join(__dirname, 'projects.json');
 const PUBLIC = path.join(__dirname, 'public');
 const SKIP = new Set(['node_modules', '.git', '.godot', 'build', 'dist', '.import', 'backlog-viewer']);
 
+// ---------- messages (vi / en, picked by the page's X-Lang header) ----------
+const MSG = {
+  vi: {
+    noTicket: id => 'Không tìm thấy ticket ' + id, noStatusCol: 'Ticket không có cột trạng thái',
+    noBuildCmd: 'Dự án chưa có lệnh build (Sửa → Lệnh build release)', alreadyBuilding: 'Đang build rồi',
+    noPresets: 'Không thấy export_presets.cfg để tăng version',
+    reverted: (n, c) => `build lỗi — đã trả version về ${n} (${c})`, finished: (c, s) => `kết thúc, mã thoát ${c} sau ${s} s`,
+    stopped: 'đã bấm dừng', cantRead: 'Không đọc được file', noProject: 'Không có dự án',
+    noBacklogInDir: 'Thư mục không có file BACKLOG*.md', noFile: 'File không tồn tại',
+  },
+  en: {
+    noTicket: id => 'Ticket not found: ' + id, noStatusCol: 'This ticket has no status column',
+    noBuildCmd: 'The project has no build command (Edit → Release build command)', alreadyBuilding: 'A build is already running',
+    noPresets: 'export_presets.cfg not found, cannot bump the version',
+    reverted: (n, c) => `build failed — version restored to ${n} (${c})`, finished: (c, s) => `finished, exit code ${c} after ${s} s`,
+    stopped: 'stop requested', cantRead: 'Cannot read the file', noProject: 'No such project',
+    noBacklogInDir: 'No BACKLOG*.md file in that folder', noFile: 'File not found',
+  },
+};
+const msg = (lang, k, ...a) => { const v = (MSG[lang] || MSG.vi)[k]; return typeof v === 'function' ? v(...a) : v; };
+
 // ---------- project store ----------
 function loadProjects() {
   try { return JSON.parse(fs.readFileSync(DATA, 'utf8')); } catch { return null; }
@@ -152,7 +173,7 @@ function parseBacklog(text) {
 }
 
 // Rewrite the status cell of one ticket row in the file
-function setStatus(file, ticketId, line, status) {
+function setStatus(file, ticketId, line, status, lang) {
   const text = fs.readFileSync(file, 'utf8');
   const eol = text.includes('\r\n') ? '\r\n' : '\n';
   const lines = text.split(/\r?\n/);
@@ -161,12 +182,12 @@ function setStatus(file, ticketId, line, status) {
   // locate row: prefer given line, fall back to search by ID
   const isRow = l => /^\s*\|/.test(l) && splitRow(l)[0].replace(/[*~`]/g, '').trim() === ticketId;
   let idx = isRow(lines[line] || '') ? line : lines.findIndex(isRow);
-  if (idx < 0) throw new Error('Không tìm thấy ticket ' + ticketId);
+  if (idx < 0) throw new Error(msg(lang, 'noTicket', ticketId));
   const row = lines[idx];
   const re = /\[( |x|X|~|-|\/)\]/g;
   let last = null, m;
   while ((m = re.exec(row))) last = m;
-  if (!last) throw new Error('Ticket không có cột trạng thái');
+  if (!last) throw new Error(msg(lang, 'noStatusCol'));
   lines[idx] = row.slice(0, last.index) + mark + row.slice(last.index + 3);
   fs.writeFileSync(file, lines.join(eol), 'utf8');
 }
@@ -207,16 +228,16 @@ function buildInfo(p) {
     bumped: b?.bumped || null, reverted: !!b?.reverted, log: b ? b.log.join('') .split('\n').slice(-400).join('\n') : '',
   };
 }
-function startBuild(p, bump) {
+function startBuild(p, bump, lang) {
   const { cmd } = buildCmd(p);
-  if (!cmd) throw new Error('Dự án chưa có lệnh build (Sửa → Lệnh build release)');
-  if (builds.get(p.id)?.running) throw new Error('Đang build rồi');
-  const b = { running: true, startedAt: Date.now(), log: [], bumped: null, reverted: false };
+  if (!cmd) throw new Error(msg(lang, 'noBuildCmd'));
+  if (builds.get(p.id)?.running) throw new Error(msg(lang, 'alreadyBuilding'));
+  const b = { running: true, startedAt: Date.now(), log: [], bumped: null, reverted: false, lang };
   const out = s => { b.log.push(s); if (b.log.length > 4000) b.log.splice(0, 1000); };
   let old = null;
   if (bump) {
     old = readVersion(p);
-    if (!old) throw new Error('Không thấy export_presets.cfg để tăng version');
+    if (!old) throw new Error(msg(lang, 'noPresets'));
     writeVersion(p, bump);
     b.bumped = { from: old, to: bump };
     out(`> version ${old.name} (${old.code}) → ${bump.name} (${bump.code})\n`);
@@ -229,8 +250,8 @@ function startBuild(p, bump) {
   const done = code => {
     if (!b.running) return;
     b.running = false; b.endedAt = Date.now(); b.exitCode = code;
-    if (code !== 0 && old) { try { writeVersion(p, old); b.reverted = true; out(`\n> build lỗi — đã trả version về ${old.name} (${old.code})\n`); } catch {} }
-    out(`\n> kết thúc, mã thoát ${code} sau ${Math.round((b.endedAt - b.startedAt) / 1000)} s\n`);
+    if (code !== 0 && old) { try { writeVersion(p, old); b.reverted = true; out(`\n> ${msg(lang, 'reverted', old.name, old.code)}\n`); } catch {} }
+    out(`\n> ${msg(lang, 'finished', code, Math.round((b.endedAt - b.startedAt) / 1000))}\n`);
   };
   child.on('error', e => { out(String(e) + '\n'); done(-1); });
   child.on('close', code => done(code ?? -1));
@@ -239,7 +260,7 @@ function startBuild(p, bump) {
 function stopBuild(p) {
   const b = builds.get(p.id);
   if (!b?.running) return;
-  b.log.push('\n> đã bấm dừng\n');
+  b.log.push(`\n> ${msg(b.lang, 'stopped')}\n`);
   if (process.platform === 'win32') execFile('taskkill', ['/pid', String(b.child.pid), '/T', '/F'], () => {});
   else b.child.kill('SIGTERM');
 }
@@ -257,7 +278,7 @@ function scheduleIdleCheck(delay = 4000) {
   idleTimer = setTimeout(() => {
     const now = Date.now();
     for (const [id, t] of clients) if (now - t > 180000) clients.delete(id);
-    if (!clients.size && !anyBuildRunning()) { console.log('Không còn tab nào mở — tắt server.'); process.exit(0); }
+    if (!clients.size && !anyBuildRunning()) { console.log('No open tabs left, stopping.'); process.exit(0); }
     scheduleIdleCheck(30000);
   }, delay);
 }
@@ -276,10 +297,10 @@ function readBody(req) {
 }
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
 
-function projectPayload(p) {
+function projectPayload(p, lang) {
   const text = safeRead(p.file);
   const extra = { building: !!builds.get(p.id)?.running, canBuild: !!buildCmd(p).cmd };
-  if (text == null) return { ...p, ...extra, error: 'Không đọc được file', tickets: [], sections: [] };
+  if (text == null) return { ...p, ...extra, error: msg(lang, 'cantRead'), tickets: [], sections: [] };
   let mtime = 0; try { mtime = fs.statSync(p.file).mtimeMs; } catch {}
   return { ...p, ...extra, mtime, ...parseBacklog(text) };
 }
@@ -287,6 +308,7 @@ function projectPayload(p) {
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const parts = url.pathname.split('/').filter(Boolean);
+  const lang = req.headers['x-lang'] === 'en' ? 'en' : 'vi';
   try {
     // Changes need the X-BV header (sent by our page; bye comes from sendBeacon; other sites can't add it without CORS)
     if (parts[0] === 'api' && req.method !== 'GET' && parts[1] !== 'bye' && req.headers['x-bv'] !== '1')
@@ -296,7 +318,7 @@ http.createServer(async (req, res) => {
     if (parts[0] === 'api' && parts[1] === 'bye') { clients.delete(url.searchParams.get('c')); scheduleIdleCheck(); return send(res, 200, { ok: true }); }
     if (parts[0] === 'api' && parts[1] === 'shutdown' && req.method === 'POST') {
       send(res, 200, { ok: true });
-      console.log('Tắt theo yêu cầu từ giao diện.');
+      console.log('Stopped from the UI.');
       return setTimeout(() => process.exit(0), 200);
     }
     if (parts[0] === 'api') {
@@ -304,35 +326,35 @@ http.createServer(async (req, res) => {
       // GET/POST/DELETE /api/projects/:id/build
       if (parts[1] === 'projects' && parts[3] === 'build') {
         const p = list.find(p => p.id === parts[2]);
-        if (!p) return send(res, 404, { error: 'Không có dự án' });
-        if (req.method === 'POST') { const b = await readBody(req); startBuild(p, b.bump || null); }
+        if (!p) return send(res, 404, { error: msg(lang, 'noProject') });
+        if (req.method === 'POST') { const b = await readBody(req); startBuild(p, b.bump || null, lang); }
         if (req.method === 'DELETE') stopBuild(p);
         return send(res, 200, buildInfo(p));
       }
       // GET /api/projects
       if (parts[1] === 'projects' && !parts[2] && req.method === 'GET')
-        return send(res, 200, list.map(projectPayload));
+        return send(res, 200, list.map(p => projectPayload(p, lang)));
       // POST /api/projects {name, file, color}
       if (parts[1] === 'projects' && !parts[2] && req.method === 'POST') {
         const b = await readBody(req);
         let file = path.resolve(String(b.file || '').trim());
         if (fs.existsSync(file) && fs.statSync(file).isDirectory()) {
           const f = fs.readdirSync(file).find(n => /^backlog.*\.md$/i.test(n));
-          if (!f) return send(res, 400, { error: 'Thư mục không có file BACKLOG*.md' });
+          if (!f) return send(res, 400, { error: msg(lang, 'noBacklogInDir') });
           file = path.join(file, f);
         }
-        if (!fs.existsSync(file)) return send(res, 400, { error: 'File không tồn tại' });
+        if (!fs.existsSync(file)) return send(res, 400, { error: msg(lang, 'noFile') });
         const p = projectFromFile(file, list);
         if (b.name) p.name = String(b.name).trim();
         if (b.color) p.color = b.color;
         if (b.build) p.build = String(b.build).trim();
         list.push(p); saveProjects(list);
-        return send(res, 201, projectPayload(p));
+        return send(res, 201, projectPayload(p, lang));
       }
       // PUT/DELETE /api/projects/:id
       if (parts[1] === 'projects' && parts[2] && !parts[3]) {
         const i = list.findIndex(p => p.id === parts[2]);
-        if (i < 0) return send(res, 404, { error: 'Không có dự án' });
+        if (i < 0) return send(res, 404, { error: msg(lang, 'noProject') });
         if (req.method === 'DELETE') { list.splice(i, 1); saveProjects(list); return send(res, 200, { ok: true }); }
         if (req.method === 'PUT') {
           const b = await readBody(req);
@@ -341,20 +363,20 @@ http.createServer(async (req, res) => {
           if (b.build !== undefined) list[i].build = String(b.build || '').trim() || null;
           if (b.file) {
             const f = path.resolve(String(b.file).trim());
-            if (!fs.existsSync(f)) return send(res, 400, { error: 'File không tồn tại' });
+            if (!fs.existsSync(f)) return send(res, 400, { error: msg(lang, 'noFile') });
             list[i].file = f;
           }
           saveProjects(list);
-          return send(res, 200, projectPayload(list[i]));
+          return send(res, 200, projectPayload(list[i], lang));
         }
       }
       // PATCH /api/projects/:id/tickets/:ticketId {status, line}
       if (parts[1] === 'projects' && parts[3] === 'tickets' && req.method === 'PATCH') {
         const p = list.find(p => p.id === parts[2]);
-        if (!p) return send(res, 404, { error: 'Không có dự án' });
+        if (!p) return send(res, 404, { error: msg(lang, 'noProject') });
         const b = await readBody(req);
-        setStatus(p.file, decodeURIComponent(parts[4]), Number(b.line), b.status);
-        return send(res, 200, projectPayload(p));
+        setStatus(p.file, decodeURIComponent(parts[4]), Number(b.line), b.status, lang);
+        return send(res, 200, projectPayload(p, lang));
       }
       // GET /api/scan → backlog files not yet added
       if (parts[1] === 'scan') {

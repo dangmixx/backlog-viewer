@@ -59,6 +59,7 @@ aside{border-right:1px solid var(--line);background:var(--panel);display:flex;fl
 .btn.danger{color:var(--p0)}
 .btn.ghost{border-color:transparent;background:none}
 .btn.icon{padding:7px}
+#langBtn{font-size:11px;font-weight:700;letter-spacing:.04em;min-width:32px;justify-content:center}
 .grow{flex:1}
 
 main{overflow:auto;min-width:0}
@@ -265,9 +266,10 @@ dialog.wide{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 32px)}
     <div class="brand"><span class="logo"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M3 8h7M3 12h4" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span>Backlog Viewer</div>
     <div class="nav" id="nav"></div>
     <div class="aside-foot">
-      <button class="btn primary grow" id="addBtn"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Thêm dự án</button>
-      <button class="btn icon" id="powerBtn" title="Tắt server"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4.6 4.2a5 5 0 1 0 6.8 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
-      <button class="btn icon" id="themeBtn" title="Đổi giao diện sáng/tối"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 9.5A5.5 5.5 0 1 1 6.5 2.5a4.5 4.5 0 0 0 7 7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
+      <button class="btn primary grow" id="addBtn"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span id="addTxt"></span></button>
+      <button class="btn icon" id="langBtn"></button>
+      <button class="btn icon" id="powerBtn"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4.6 4.2a5 5 0 1 0 6.8 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      <button class="btn icon" id="themeBtn"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 9.5A5.5 5.5 0 1 1 6.5 2.5a4.5 4.5 0 0 0 7 7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
     </div>
   </aside>
   <main id="main"></main>
@@ -280,8 +282,6 @@ dialog.wide{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 32px)}
 
 <script>
 const COLORS = ['#6366f1','#ec4899','#f59e0b','#10b981','#06b6d4','#8b5cf6','#ef4444','#84cc16'];
-const ST_LABEL = { todo: 'Chưa làm', doing: 'Đang làm', done: 'Xong', none: '—' };
-const NEXT = { todo: 'doing', doing: 'done', done: 'todo' };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 const md = s => esc(s)
@@ -289,6 +289,119 @@ const md = s => esc(s)
   .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
   .replace(/~~(.+?)~~/g, '<s>$1</s>')
   .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<span style="text-decoration:underline dotted">$1</span>');
+
+// ---------- i18n ----------
+const I18N = {
+  vi: {
+    todo: 'Chưa làm', doing: 'Đang làm', done: 'Xong',
+    addProject: 'Thêm dự án', powerTitle: 'Tắt server', themeTitle: 'Đổi giao diện sáng/tối', langTitle: 'Switch to English',
+    noServer: 'Không kết nối được server',
+    overview: 'Tổng quan', projectsN: n => `Dự án · ${n}`, noProjectsNav: 'Chưa có dự án',
+    progress: 'Tiến độ', overviewSub: (p, n) => `${p} dự án · ${n} ticket`, noProjects: 'Chưa có dự án nào.',
+    doingN: n => `Đang làm · ${n}`, p0TodoN: n => `P0 chưa làm · ${n}`,
+    nTodo: 'chưa làm', nDoing: 'đang làm', nDone: 'xong',
+    buildTitle: 'Build bản release mới', building: 'Đang build…', edit: 'Sửa', checkPath: 'kiểm tra lại đường dẫn file.',
+    searchPh: 'Tìm ID, nội dung…  ( / )', fOpen: 'Còn lại', fAll: 'Tất cả', anyPrio: 'Mọi ưu tiên', anyMs: 'Mọi milestone',
+    list: 'Danh sách', board: 'Bảng', noMatch: 'Không có ticket nào khớp bộ lọc.', general: '(Chung)',
+    pickTitle: 'Bấm để soạn lệnh cho AI · Ctrl+bấm để chọn thêm', estimate: 'Ước lượng', needsYou: 'Cần bạn',
+    unscheduled: 'Chưa lên lịch', willChange: s => `Sẽ chuyển sang “${s}” — bấm để huỷ hoặc đổi`, clickToChange: 'Bấm để đổi trạng thái',
+    moreTickets: n => `+${n} ticket nữa`,
+    nothingUndo: 'Không còn thao tác để hoàn tác', undone: (id, s) => `Đã hoàn tác: ${id} → ${s}`, undoMore: 'Hoàn tác tiếp', undo: 'Hoàn tác',
+    cancelChange: s => `Huỷ thay đổi (giữ “${s}”)`, cancelled: (id, s) => `Đã huỷ — ${id} giữ “${s}”`, saved: (id, s) => `Đã lưu: ${id} → ${s}`,
+    moreChanges: n => ` (+${n} thay đổi khác)`, cancel: 'Huỷ',
+    mDo: 'Làm luôn', mPlan: 'Lập kế hoạch', mVerify: 'Kiểm tra lại',
+    composer: 'Soạn lệnh cho AI', closeEsc: 'Đóng (Esc)', unpick: 'Bỏ chọn',
+    pickHint: 'Ctrl + bấm ticket khác trong cùng dự án để thêm vào lệnh.', mode: 'Chế độ',
+    oStatusDo: 'AI tự cập nhật trạng thái trong BACKLOG', oStatusVerify: 'Cho phép đổi về [~] nếu chưa đạt',
+    oTest: 'Chạy test / kiểm tra trước khi báo xong', oAsk: 'Dừng và hỏi khi gặp việc cần tôi', oCommit: 'Commit khi xong',
+    notes: 'Ghi chú thêm', notesPh: 'VD: ưu tiên làm phần UI trước, giữ nguyên API cũ…',
+    prompt: 'Lệnh', edited: '· đã sửa tay', regen: 'Tạo lại', copy: 'Sao chép lệnh',
+    lines: n => `${n} dòng · Ctrl+Enter để sao chép`, copied: 'Đã sao chép — dán vào Claude Code để AI làm',
+    pVerb: { do: 'làm', plan: 'lập kế hoạch (chưa sửa code)', verify: 'kiểm tra đã xong chưa' },
+    rStatus: 'Đổi [~] khi bắt đầu, [x] khi xong.', rTest: 'Chạy test trước khi báo xong.', rCommit: 'Commit khi xong.',
+    rRevert: 'Thiếu thì đổi về [~].', rAsk: 'Việc cần tôi thì dừng lại hỏi.',
+    editProject: 'Sửa dự án', name: 'Tên dự án', namePh: 'Để trống = lấy từ tiêu đề file',
+    filePath: 'Đường dẫn file BACKLOG (hoặc thư mục dự án)',
+    fileHint: 'File Markdown có bảng cột <code>ID</code> · <code>Việc</code> · <code>Ưu tiên</code> · <code>Trạng thái</code> (<code>[ ]</code> <code>[~]</code> <code>[x]</code>).',
+    buildCmd: 'Lệnh build release', buildCmdPh: 'Để trống = tự dùng tools\\export_release.ps1 nếu có',
+    buildCmdHint: 'Chạy trong thư mục dự án. VD: <code>powershell -File tools\\export_release.ps1</code>',
+    color: 'Màu', remove: 'Xoá khỏi danh sách', save: 'Lưu', add: 'Thêm',
+    confirmRemove: n => `Xoá "${n}" khỏi danh sách? (File BACKLOG không bị xoá)`,
+    removed: 'Đã xoá dự án', savedProj: 'Đã lưu', added: 'Đã thêm dự án', found: 'Tìm thấy trong thư mục làm việc:',
+    autoDetected: 'tự phát hiện', noBuildCmd: 'Chưa có lệnh build. Bấm Sửa dự án → "Lệnh build release".',
+    current: 'Hiện tại', bump: 'Tăng version trước khi build', noBuildYet: 'Chưa build lần nào trong phiên này.',
+    stopBuild: 'Dừng build', close: 'Đóng', confirmStop: 'Dừng build đang chạy?',
+    lowCode: (a, b) => `Code ${a} không lớn hơn ${b} — Google Play sẽ từ chối. Vẫn build?`,
+    buildOk: 'Build xong', after: d => `sau ${d}`, buildFail: 'Build lỗi', exitCode: c => `mã ${c}`, reverted: 'đã trả version về như cũ',
+    buildDoneToast: n => `Build ${n} xong ✓`, buildFailToast: 'Build lỗi — mở lại để xem log', min: 'ph',
+    confirmShutdown: 'Tắt server Backlog Viewer?\nMở lại bằng shortcut hoặc start.cmd.',
+    shutdownTitle: 'Đã tắt server', shutdownBody: 'Có thể đóng tab này. Mở lại bằng shortcut <b>Backlog Viewer</b>.',
+  },
+  en: {
+    todo: 'To do', doing: 'In progress', done: 'Done',
+    addProject: 'Add project', powerTitle: 'Stop server', themeTitle: 'Toggle light/dark', langTitle: 'Chuyển sang tiếng Việt',
+    noServer: 'Cannot reach the server',
+    overview: 'Overview', projectsN: n => `Projects · ${n}`, noProjectsNav: 'No projects yet',
+    progress: 'Progress', overviewSub: (p, n) => `${p} project${p === 1 ? '' : 's'} · ${n} tickets`, noProjects: 'No projects yet.',
+    doingN: n => `In progress · ${n}`, p0TodoN: n => `P0 to do · ${n}`,
+    nTodo: 'to do', nDoing: 'in progress', nDone: 'done',
+    buildTitle: 'Build a new release', building: 'Building…', edit: 'Edit', checkPath: 'check the file path.',
+    searchPh: 'Search ID, text…  ( / )', fOpen: 'Open', fAll: 'All', anyPrio: 'Any priority', anyMs: 'All milestones',
+    list: 'List', board: 'Board', noMatch: 'No tickets match the filters.', general: '(General)',
+    pickTitle: 'Click to write an AI prompt · Ctrl+click to add more', estimate: 'Estimate', needsYou: 'Needs you',
+    unscheduled: 'Unscheduled', willChange: s => `Will change to “${s}” — click to cancel or change`, clickToChange: 'Click to change status',
+    moreTickets: n => `+${n} more tickets`,
+    nothingUndo: 'Nothing to undo', undone: (id, s) => `Undone: ${id} → ${s}`, undoMore: 'Undo more', undo: 'Undo',
+    cancelChange: s => `Cancel change (keep “${s}”)`, cancelled: (id, s) => `Cancelled — ${id} stays “${s}”`, saved: (id, s) => `Saved: ${id} → ${s}`,
+    moreChanges: n => ` (+${n} more change${n === 1 ? '' : 's'})`, cancel: 'Cancel',
+    mDo: 'Do it', mPlan: 'Plan', mVerify: 'Verify',
+    composer: 'AI prompt', closeEsc: 'Close (Esc)', unpick: 'Remove',
+    pickHint: 'Ctrl + click other tickets of the same project to add them.', mode: 'Mode',
+    oStatusDo: 'AI updates the status in BACKLOG', oStatusVerify: 'Allow moving back to [~] if incomplete',
+    oTest: 'Run tests / checks before reporting done', oAsk: 'Stop and ask when something needs me', oCommit: 'Commit when done',
+    notes: 'Extra notes', notesPh: 'e.g. do the UI part first, keep the old API…',
+    prompt: 'Prompt', edited: '· edited', regen: 'Regenerate', copy: 'Copy prompt',
+    lines: n => `${n} line${n === 1 ? '' : 's'} · Ctrl+Enter to copy`, copied: 'Copied — paste it into Claude Code',
+    pVerb: { do: 'do', plan: 'plan (no code changes yet)', verify: 'verify it is really done' },
+    rStatus: 'Set [~] when starting, [x] when done.', rTest: 'Run the tests before reporting done.', rCommit: 'Commit when done.',
+    rRevert: 'If incomplete, set it back to [~].', rAsk: 'Stop and ask me for anything only I can do.',
+    editProject: 'Edit project', name: 'Project name', namePh: 'Empty = take it from the file title',
+    filePath: 'BACKLOG file path (or project folder)',
+    fileHint: 'Markdown with table columns <code>ID</code> · <code>Task</code> · <code>Priority</code> · <code>Status</code> (<code>[ ]</code> <code>[~]</code> <code>[x]</code>).',
+    buildCmd: 'Release build command', buildCmdPh: 'Empty = use tools\\export_release.ps1 when present',
+    buildCmdHint: 'Runs in the project folder. e.g. <code>powershell -File tools\\export_release.ps1</code>',
+    color: 'Color', remove: 'Remove from list', save: 'Save', add: 'Add',
+    confirmRemove: n => `Remove "${n}" from the list? (The BACKLOG file is not deleted)`,
+    removed: 'Project removed', savedProj: 'Saved', added: 'Project added', found: 'Found in the work folder:',
+    autoDetected: 'auto-detected', noBuildCmd: 'No build command. Edit the project → "Release build command".',
+    current: 'Current', bump: 'Bump version before building', noBuildYet: 'No build in this session yet.',
+    stopBuild: 'Stop build', close: 'Close', confirmStop: 'Stop the running build?',
+    lowCode: (a, b) => `Code ${a} is not greater than ${b} — Google Play will reject it. Build anyway?`,
+    buildOk: 'Build finished', after: d => `in ${d}`, buildFail: 'Build failed', exitCode: c => `exit code ${c}`, reverted: 'version restored',
+    buildDoneToast: n => `Build ${n} finished ✓`, buildFailToast: 'Build failed — reopen to see the log', min: 'min',
+    confirmShutdown: 'Stop the Backlog Viewer server?\nStart it again with the shortcut or start.cmd.',
+    shutdownTitle: 'Server stopped', shutdownBody: 'You can close this tab. Start it again with the <b>Backlog Viewer</b> shortcut.',
+  },
+};
+let lang = (() => { try { const l = localStorage.getItem('bv-lang'); if (l in I18N) return l; } catch {} return 'vi'; })();
+function T(k, ...a) { const v = I18N[lang][k] ?? I18N.vi[k] ?? k; return typeof v === 'function' ? v(...a) : v; }
+const stl = s => s === 'none' ? '—' : T(s);
+function applyLang() {
+  document.documentElement.lang = lang;
+  $('#addTxt').textContent = T('addProject');
+  $('#powerBtn').title = T('powerTitle');
+  $('#themeBtn').title = T('themeTitle');
+  $('#langBtn').textContent = lang === 'vi' ? 'EN' : 'VI';
+  $('#langBtn').title = T('langTitle');
+}
+function setLang(l) {
+  lang = l;
+  try { localStorage.setItem('bv-lang', l); } catch {}
+  applyLang(); render();
+  if (picks.length) renderDrawer();
+  if ($('#bdlg').open) openBuild(projects.find(p => p.id === buildPid));
+}
+// ---------- end i18n ----------
 
 let projects = [];
 let state = load('bv-state', { view: 'all', status: 'open', prio: 'all', section: 'all', q: '', mode: 'list', closed: {} });
@@ -305,7 +418,7 @@ function counts(ts) {
 const bar = c => `<div class="bar"><i class="d" style="width:${c.total ? c.done / c.total * 100 : 0}%"></i><i class="g" style="width:${c.total ? c.doing / c.total * 100 : 0}%"></i></div>`;
 
 async function api(url, opt = {}) {
-  const r = await fetch(url, { headers: { 'Content-Type': 'application/json', 'X-BV': '1' }, ...opt, body: opt.body && JSON.stringify(opt.body) });
+  const r = await fetch(url, { headers: { 'Content-Type': 'application/json', 'X-BV': '1', 'X-Lang': lang }, ...opt, body: opt.body && JSON.stringify(opt.body) });
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
@@ -325,7 +438,7 @@ async function refresh(silent) {
     projects = next;
     if (state.view !== 'all' && !projects.some(p => p.id === state.view)) state.view = 'all';
     render();
-  } catch (e) { if (!silent) $('#main').innerHTML = `<div class="wrap"><div class="err">Không kết nối được server: ${esc(e.message)}</div></div>`; }
+  } catch (e) { if (!silent) $('#main').innerHTML = `<div class="wrap"><div class="err">${T('noServer')}: ${esc(e.message)}</div></div>`; }
 }
 
 function render() { renderNav(); state.view === 'all' ? renderAll() : renderProject(projects.find(p => p.id === state.view)); }
@@ -335,12 +448,12 @@ function renderNav() {
   $('#nav').innerHTML = `
     <button class="nav-item ${state.view === 'all' ? 'active' : ''}" data-view="all">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="2" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="9" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="9" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/></svg>
-      <span class="nm">Tổng quan</span><span class="pct">${all.pct}%</span></button>
-    <div class="nav-label">Dự án · ${projects.length}</div>
+      <span class="nm">${T('overview')}</span><span class="pct">${all.pct}%</span></button>
+    <div class="nav-label">${T('projectsN', projects.length)}</div>
     ${projects.map((p, i) => { const c = counts(p.tickets); return `
       <button class="nav-item ${state.view === p.id ? 'active' : ''}" data-view="${esc(p.id)}">
         <span class="dot" style="background:${colorOf(p, i)}"></span><span class="nm">${esc(p.name)}</span><span class="pct">${p.error ? '!' : c.pct + '%'}</span></button>`; }).join('')}
-    ${projects.length ? '' : '<div class="nav-label" style="text-transform:none;letter-spacing:0">Chưa có dự án</div>'}`;
+    ${projects.length ? '' : `<div class="nav-label" style="text-transform:none;letter-spacing:0">${T('noProjectsNav')}</div>`}`;
 }
 
 function go(view) { state.view = view; state.section = 'all'; persist(); render(); $('#main').scrollTop = 0; $('#aside').classList.remove('open'); }
@@ -349,10 +462,10 @@ const menuBtn = `<button class="btn icon menu-btn" data-act="menu" title="Menu">
 
 function statCards(c, extra = '') {
   return `<div class="stats">
-    <div class="stat"><div class="k">Tiến độ</div><div class="v">${c.pct}%</div>${bar(c)}</div>
-    <div class="stat"><div class="k"><span class="st todo" style="padding:0;background:none"></span>Chưa làm</div><div class="v">${c.todo}</div></div>
-    <div class="stat"><div class="k"><span class="st doing" style="padding:0;background:none"></span>Đang làm</div><div class="v">${c.doing}</div></div>
-    <div class="stat"><div class="k"><span class="st done" style="padding:0;background:none"></span>Xong</div><div class="v">${c.done}<span style="font-size:14px;color:var(--faint);font-weight:500"> / ${c.total}</span></div></div>
+    <div class="stat"><div class="k">${T('progress')}</div><div class="v">${c.pct}%</div>${bar(c)}</div>
+    <div class="stat"><div class="k"><span class="st todo" style="padding:0;background:none"></span>${T('todo')}</div><div class="v">${c.todo}</div></div>
+    <div class="stat"><div class="k"><span class="st doing" style="padding:0;background:none"></span>${T('doing')}</div><div class="v">${c.doing}</div></div>
+    <div class="stat"><div class="k"><span class="st done" style="padding:0;background:none"></span>${T('done')}</div><div class="v">${c.done}<span style="font-size:14px;color:var(--faint);font-weight:500"> / ${c.total}</span></div></div>
   </div>${extra}`;
 }
 
@@ -362,11 +475,11 @@ function renderAll() {
   const doing = all.filter(t => t.status === 'doing');
   const p0 = all.filter(t => t.status === 'todo' && t.priority === 'P0');
   $('#main').innerHTML = `<div class="wrap">
-    <div class="head">${menuBtn}<div class="grow"><h1>Tổng quan</h1><div class="sub">${projects.length} dự án · ${all.length} ticket</div></div></div>
+    <div class="head">${menuBtn}<div class="grow"><h1>${T('overview')}</h1><div class="sub">${T('overviewSub', projects.length, all.length)}</div></div></div>
     ${statCards(c)}
-    ${projects.length ? `<div class="grid">${projects.map((p, i) => projectCard(p, i)).join('')}</div>` : `<div class="empty">Chưa có dự án nào.<br><br><button class="btn primary" data-act="add">Thêm dự án</button></div>`}
-    ${doing.length ? `<h2 class="h">Đang làm · ${doing.length}</h2><div class="section"><div class="rows">${doing.map(t => row(t, t.p)).join('')}</div></div>` : ''}
-    ${p0.length ? `<h2 class="h">P0 chưa làm · ${p0.length}</h2><div class="section"><div class="rows">${p0.map(t => row(t, t.p)).join('')}</div></div>` : ''}
+    ${projects.length ? `<div class="grid">${projects.map((p, i) => projectCard(p, i)).join('')}</div>` : `<div class="empty">${T('noProjects')}<br><br><button class="btn primary" data-act="add">${T('addProject')}</button></div>`}
+    ${doing.length ? `<h2 class="h">${T('doingN', doing.length)}</h2><div class="section"><div class="rows">${doing.map(t => row(t, t.p)).join('')}</div></div>` : ''}
+    ${p0.length ? `<h2 class="h">${T('p0TodoN', p0.length)}</h2><div class="section"><div class="rows">${p0.map(t => row(t, t.p)).join('')}</div></div>` : ''}
   </div>`;
 }
 
@@ -377,7 +490,7 @@ function projectCard(p, i) {
     <div class="top"><span class="dot" style="background:${colorOf(p, i)}"></span><h3>${esc(p.name)}</h3><span class="big">${c.pct}%</span></div>
     <div class="desc">${p.error ? `<span style="color:var(--p0)">${esc(p.error)}</span>` : md(p.intro.split('\n')[0] || p.file)}</div>
     ${bar(c)}
-    <div class="nums"><span><b>${c.todo}</b> chưa làm</span><span><b>${c.doing}</b> đang làm</span><span><b>${c.done}</b> xong</span></div>
+    <div class="nums"><span><b>${c.todo}</b> ${T('nTodo')}</span><span><b>${c.doing}</b> ${T('nDoing')}</span><span><b>${c.done}</b> ${T('nDone')}</span></div>
     ${doing.length ? `<div class="cur">${doing.map(t => `<div><span class="mono">${esc(t.id)}</span><span>${esc(t.title.replace(/[`*]/g, ''))}</span></div>`).join('')}</div>` : ''}
   </div>`;
 }
@@ -406,21 +519,21 @@ function renderProject(p) {
       <div class="grow"><h1><span class="dot" style="display:inline-block;width:12px;height:12px;border-radius:4px;background:${colorOf(p)};margin-right:10px;vertical-align:2px"></span>${esc(p.name)}</h1>
         ${p.intro ? `<div class="sub">${md(p.intro)}</div>` : ''}
         <div class="path mono">${esc(p.file)}</div></div>
-      <button class="btn ${p.building ? 'building' : ''}" data-act="build" title="Build bản release mới">${p.building
-        ? '<span class="spin"></span>Đang build…'
+      <button class="btn ${p.building ? 'building' : ''}" data-act="build" title="${T('buildTitle')}">${p.building
+        ? `<span class="spin"></span>${T('building')}`
         : '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Build release'}</button>
-      <button class="btn" data-act="edit"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10.5 2.5l3 3L6 13H3v-3l7.5-7.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>Sửa</button>
+      <button class="btn" data-act="edit"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10.5 2.5l3 3L6 13H3v-3l7.5-7.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>${T('edit')}</button>
     </div>
-    ${p.error ? `<div class="err" style="margin-top:20px">${esc(p.error)} — kiểm tra lại đường dẫn file.</div>` : `
+    ${p.error ? `<div class="err" style="margin-top:20px">${esc(p.error)} — ${T('checkPath')}</div>` : `
     ${statCards(c)}
     <div class="toolbar">
-      <div class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><input id="q" placeholder="Tìm ID, nội dung…  ( / )" value="${esc(state.q)}"></div>
-      ${state.mode === 'board' ? '' : `<div class="seg">${segBtn('open', 'Còn lại')}${segBtn('doing', 'Đang làm')}${segBtn('done', 'Xong')}${segBtn('all', 'Tất cả')}</div>`}
-      ${prios.length ? `<div class="seg"><button class="${state.prio === 'all' ? 'on' : ''}" data-prio="all">Mọi ưu tiên</button>${prios.map(x => `<button class="${state.prio === x ? 'on' : ''}" data-prio="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''}
-      <select class="sel" id="secSel"><option value="all">Mọi milestone</option>${secs.map(s => `<option ${state.section === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
-      <div class="seg"><button class="${state.mode === 'list' ? 'on' : ''}" data-mode="list" title="Danh sách">Danh sách</button><button class="${state.mode === 'board' ? 'on' : ''}" data-mode="board" title="Bảng">Bảng</button></div>
+      <div class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><input id="q" placeholder="${T('searchPh')}" value="${esc(state.q)}"></div>
+      ${state.mode === 'board' ? '' : `<div class="seg">${segBtn('open', T('fOpen'))}${segBtn('doing', T('doing'))}${segBtn('done', T('done'))}${segBtn('all', T('fAll'))}</div>`}
+      ${prios.length ? `<div class="seg"><button class="${state.prio === 'all' ? 'on' : ''}" data-prio="all">${T('anyPrio')}</button>${prios.map(x => `<button class="${state.prio === x ? 'on' : ''}" data-prio="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''}
+      <select class="sel" id="secSel"><option value="all">${T('anyMs')}</option>${secs.map(s => `<option ${state.section === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+      <div class="seg"><button class="${state.mode === 'list' ? 'on' : ''}" data-mode="list">${T('list')}</button><button class="${state.mode === 'board' ? 'on' : ''}" data-mode="board">${T('board')}</button></div>
     </div>
-    ${shown.length ? (state.mode === 'board' ? board(shown) : listView(p, shown)) : `<div class="empty">Không có ticket nào khớp bộ lọc.</div>`}`}
+    ${shown.length ? (state.mode === 'board' ? board(shown) : listView(p, shown)) : `<div class="empty">${T('noMatch')}</div>`}`}
   </div>`;
 }
 
@@ -434,7 +547,7 @@ function listView(p, shown) {
     return `<div class="section ${closed ? 'closed' : ''}">
       <div class="sec-head" data-toggle="${esc(key)}">
         <svg class="chev" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <h3>${md(g.name)}</h3><span class="cnt">${c.total ? `${c.done}/${c.total}` : g.all.length}</span>${c.total ? bar(c) : ''}
+        <h3>${g.name === '(Chung)' ? T('general') : md(g.name)}</h3><span class="cnt">${c.total ? `${c.done}/${c.total}` : g.all.length}</span>${c.total ? bar(c) : ''}
       </div>
       ${note ? `<div class="note">${md(note)}</div>` : ''}
       <div class="rows">${g.ts.map(t => row(t, p)).join('')}</div>
@@ -442,7 +555,7 @@ function listView(p, shown) {
   }).join('');
 }
 
-const pickAttr = (t, p) => `data-pick="${esc(p.id)}|${esc(t.id)}" title="Bấm để soạn lệnh cho AI · Ctrl+bấm để chọn thêm"`;
+const pickAttr = (t, p) => `data-pick="${esc(p.id)}|${esc(t.id)}" title="${T('pickTitle')}"`;
 const isPicked = (t, p) => picks.some(x => x.pid === p.id && x.tid === t.id) ? 'picked' : '';
 
 function row(t, p) {
@@ -451,25 +564,25 @@ function row(t, p) {
     <div class="t">${md(t.title)}
       ${(t.estimate && t.estimate !== '—') || (t.needs && t.needs !== '—') || state.view === 'all' ? `<div class="meta">
         ${state.view === 'all' ? `<span class="proj"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${colorOf(p)};margin-right:5px"></span>${esc(p.name)} · ${md(t.section)}</span>` : ''}
-        ${t.estimate && t.estimate !== '—' ? `<span class="tag" title="Ước lượng">${esc(t.estimate)}</span>` : ''}
-        ${t.needs && t.needs !== '—' ? `<span class="needs" title="Cần bạn"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M2.5 14c.8-2.6 3-4 5.5-4s4.7 1.4 5.5 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>${md(t.needs)}</span>` : ''}
+        ${t.estimate && t.estimate !== '—' ? `<span class="tag" title="${T('estimate')}">${esc(t.estimate)}</span>` : ''}
+        ${t.needs && t.needs !== '—' ? `<span class="needs" title="${T('needsYou')}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M2.5 14c.8-2.6 3-4 5.5-4s4.7 1.4 5.5 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>${md(t.needs)}</span>` : ''}
       </div>` : ''}
     </div>
     <div class="right">${t.priority ? `<span class="tag ${esc(t.priority)}">${esc(t.priority)}</span>` : ''}${statusBtn(t, p)}</div>
   </div>`;
 }
 const statusBtn = (t, p) => {
-  if (!t.hasStatus) return `<span class="st none" title="Chưa lên lịch">Chưa lên lịch</span>`;
+  if (!t.hasStatus) return `<span class="st none">${T('unscheduled')}</span>`;
   const pd = pending.get(p.id + '|' + t.id);
   const attrs = `data-pid="${esc(p.id)}" data-tid="${esc(t.id)}" data-line="${t.line}" data-cur="${t.status}"`;
   return pd
-    ? `<button class="st ${pd.next} pending" ${attrs} title="Sẽ chuyển sang “${ST_LABEL[pd.next]}” — bấm để huỷ hoặc đổi">${ST_LABEL[pd.next]}${pbar(pd)}</button>`
-    : `<button class="st ${t.status}" ${attrs} title="Bấm để đổi trạng thái">${ST_LABEL[t.status]}</button>`;
+    ? `<button class="st ${pd.next} pending" ${attrs} title="${T('willChange', stl(pd.next))}">${stl(pd.next)}${pbar(pd)}</button>`
+    : `<button class="st ${t.status}" ${attrs} title="${T('clickToChange')}">${stl(t.status)}</button>`;
 };
 
 function board(shown) {
   const p = projects.find(x => x.id === state.view);
-  const cols = [['todo', 'Chưa làm'], ['doing', 'Đang làm'], ['done', 'Xong']];
+  const cols = ['todo', 'doing', 'done'].map(k => [k, T(k)]);
   const nos = shown.filter(t => !t.hasStatus);
   return `<div class="board">${cols.map(([k, label]) => {
     const ts = shown.filter(t => t.status === k).concat(k === 'todo' ? nos : []);
@@ -477,7 +590,7 @@ function board(shown) {
     return `<div class="col"><h4><span class="st ${k}" style="padding:0;background:none"></span>${label}<span class="n">${ts.length}</span></h4>
       ${ts.slice(0, lim).map(t => `<div class="card ${isPicked(t, p)}" ${pickAttr(t, p)}><div class="top"><span class="id">${esc(t.id)}</span>${t.priority ? `<span class="tag ${esc(t.priority)}">${esc(t.priority)}</span>` : ''}</div>
         <div class="t">${md(t.title)}</div><div class="foot"><span class="sec">${md(t.section)}</span>${statusBtn(t, p)}</div></div>`).join('')}
-      ${ts.length > lim ? `<div class="more">+${ts.length - lim} ticket nữa</div>` : ''}</div>`;
+      ${ts.length > lim ? `<div class="more">${T('moreTickets', ts.length - lim)}</div>` : ''}</div>`;
   }).join('')}</div>`;
 }
 
@@ -492,9 +605,9 @@ async function setTicket(pid, tid, line, status) {
 }
 async function undo() {
   const u = undoStack.pop();
-  if (!u) return toast('Không còn thao tác để hoàn tác');
+  if (!u) return toast(T('nothingUndo'));
   if (await setTicket(u.pid, u.tid, u.line, u.prev))
-    toast(`Đã hoàn tác: ${u.tid} → ${ST_LABEL[u.prev]}`, undoStack.length ? { label: 'Hoàn tác tiếp', run: undo } : null);
+    toast(T('undone', u.tid, stl(u.prev)), undoStack.length ? { label: T('undoMore'), run: undo } : null);
   else undoStack.push(u);
 }
 
@@ -511,8 +624,8 @@ function openStatusMenu(btn) {
   m.id = 'stMenu';
   m.innerHTML = `<div class="sm-h mono">${esc(tid)}</div>` +
     ['todo', 'doing', 'done'].map(s => `<button data-to="${s}" ${s === shown ? 'disabled' : ''}>
-      <span class="st ${s}" style="padding:0;background:none"></span>${ST_LABEL[s]}${s === shown ? '<span class="ck">✓</span>' : ''}</button>`).join('') +
-    (pd ? `<div class="sm-sep"></div><button data-to="cancel" class="sm-cancel">Huỷ thay đổi (giữ “${ST_LABEL[pd.prev]}”)</button>` : '');
+      <span class="st ${s}" style="padding:0;background:none"></span>${stl(s)}${s === shown ? '<span class="ck">✓</span>' : ''}</button>`).join('') +
+    (pd ? `<div class="sm-sep"></div><button data-to="cancel" class="sm-cancel">${T('cancelChange', stl(pd.prev))}</button>` : '');
   document.body.appendChild(m);
   const r = btn.getBoundingClientRect(), mw = m.offsetWidth, mh = m.offsetHeight;
   m.style.left = Math.max(8, Math.min(r.right - mw, innerWidth - mw - 8)) + 'px';
@@ -542,7 +655,7 @@ function cancelPending(key) {
   const pd = pending.get(key);
   if (!pd) return;
   clearTimeout(pd.timer); pending.delete(key);
-  render(); toast(`Đã huỷ — ${pd.tid} giữ “${ST_LABEL[pd.prev]}”`);
+  render(); toast(T('cancelled', pd.tid, stl(pd.prev)));
 }
 async function applyPending(key) {
   const pd = pending.get(key);
@@ -552,14 +665,14 @@ async function applyPending(key) {
     undoStack.push({ pid: pd.pid, tid: pd.tid, line: pd.line, prev: pd.prev });
     if (undoStack.length > 50) undoStack.shift();
     if (pending.size) showPendingToast();
-    else toast(`Đã lưu: ${pd.tid} → ${ST_LABEL[pd.next]}`, { label: 'Hoàn tác', run: undo });
+    else toast(T('saved', pd.tid, stl(pd.next)), { label: T('undo'), run: undo });
   } else render();
 }
 function showPendingToast() {
   const key = [...pending.keys()].pop();
   if (!key) return;
   const pd = pending.get(key), more = pending.size - 1;
-  toast(`${pd.tid} → ${ST_LABEL[pd.next]}${more ? ` (+${more} thay đổi khác)` : ''}`, { label: 'Huỷ', run: () => cancelPending(key) });
+  toast(`${pd.tid} → ${stl(pd.next)}${more ? T('moreChanges', more) : ''}`, { label: T('cancel'), run: () => cancelPending(key) });
   $('#toast').insertAdjacentHTML('afterbegin', pbar(pd));
 }
 // closing the tab inside the 5 s window still saves the change
@@ -573,7 +686,7 @@ addEventListener('pagehide', () => {
 let picks = [];                       // [{pid, tid}]
 const comp = load('bv-comp2', { mode: 'do', status: false, test: false, commit: false, ask: false });
 let compNote = '', compDirty = false;
-const MODES = { do: 'Làm luôn', plan: 'Lập kế hoạch', verify: 'Kiểm tra lại' };
+const MODES = () => ({ do: T('mDo'), plan: T('mPlan'), verify: T('mVerify') });
 const dirOf = f => f.replace(/[\\/][^\\/]*$/, '');
 const plain = s => String(s || '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 const findTicket = x => { const p = projects.find(p => p.id === x.pid); return p && { p, t: p.tickets.find(t => t.id === x.tid) }; };
@@ -604,14 +717,14 @@ function buildPrompt() {
     groups.set(m, [...(groups.get(m) || []), t.id]);
   }
   const ids = [...groups].map(([m, list]) => `${m}: ${list.join(', ')}`).join('; ');
-  const verb = { do: 'làm', plan: 'lập kế hoạch (chưa sửa code)', verify: 'kiểm tra đã xong chưa' }[comp.mode];
+  const verb = T('pVerb')[comp.mode];
   const rules = [];
   if (comp.mode === 'do') {
-    if (comp.status) rules.push('Đổi [~] khi bắt đầu, [x] khi xong.');
-    if (comp.test) rules.push('Chạy test trước khi báo xong.');
-    if (comp.commit) rules.push('Commit khi xong.');
-  } else if (comp.mode === 'verify' && comp.status) rules.push('Thiếu thì đổi về [~].');
-  if (comp.ask) rules.push('Việc cần tôi thì dừng lại hỏi.');
+    if (comp.status) rules.push(T('rStatus'));
+    if (comp.test) rules.push(T('rTest'));
+    if (comp.commit) rules.push(T('rCommit'));
+  } else if (comp.mode === 'verify' && comp.status) rules.push(T('rRevert'));
+  if (comp.ask) rules.push(T('rAsk'));
   return [`${p.name} — ${p.file} — ${verb} ${ids}`, rules.join(' '), compNote.trim()].filter(Boolean).join('\n');
 }
 
@@ -621,40 +734,40 @@ function renderDrawer() {
   $('.app').classList.add('drawer-open');
   const opt = (k, label) => `<label><input type="checkbox" data-opt="${k}" ${comp[k] ? 'checked' : ''}>${label}</label>`;
   dr.innerHTML = `
-    <div class="dr-head"><h3><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.4 4.4 1.6-4.4 1.6L8 13.5 6.4 9.1 2 7.5l4.4-1.6L8 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Soạn lệnh cho AI</h3>
-      <button class="btn icon ghost" data-dr="close" title="Đóng (Esc)"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
+    <div class="dr-head"><h3><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.4 4.4 1.6-4.4 1.6L8 13.5 6.4 9.1 2 7.5l4.4-1.6L8 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>${T('composer')}</h3>
+      <button class="btn icon ghost" data-dr="close" title="${T('closeEsc')}"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
     <div class="dr-body">
       <div><div class="dr-label">Ticket · ${items.length} · ${esc(items[0].p.name)}</div>
-        <div class="chips">${items.map(({ t }) => `<div class="chip"><span class="mono">${esc(t.id)}</span><span class="tt">${esc(plain(t.title).replace(/[`*]/g, ''))}</span><button data-unpick="${esc(t.id)}" title="Bỏ chọn">×</button></div>`).join('')}</div>
-        <div class="dr-hint" style="margin-top:6px">Ctrl + bấm ticket khác trong cùng dự án để thêm vào lệnh.</div></div>
-      <div><div class="dr-label">Chế độ</div>
-        <div class="seg full">${Object.entries(MODES).map(([k, v]) => `<button data-cmode="${k}" class="${comp.mode === k ? 'on' : ''}">${v}</button>`).join('')}</div></div>
+        <div class="chips">${items.map(({ t }) => `<div class="chip"><span class="mono">${esc(t.id)}</span><span class="tt">${esc(plain(t.title).replace(/[`*]/g, ''))}</span><button data-unpick="${esc(t.id)}" title="${T('unpick')}">×</button></div>`).join('')}</div>
+        <div class="dr-hint" style="margin-top:6px">${T('pickHint')}</div></div>
+      <div><div class="dr-label">${T('mode')}</div>
+        <div class="seg full">${Object.entries(MODES()).map(([k, v]) => `<button data-cmode="${k}" class="${comp.mode === k ? 'on' : ''}">${v}</button>`).join('')}</div></div>
       <div class="checks">
-        ${comp.mode !== 'plan' ? opt('status', comp.mode === 'do' ? 'AI tự cập nhật trạng thái trong BACKLOG' : 'Cho phép đổi về [~] nếu chưa đạt') : ''}
-        ${comp.mode === 'do' ? opt('test', 'Chạy test / kiểm tra trước khi báo xong') : ''}
-        ${opt('ask', 'Dừng và hỏi khi gặp việc cần tôi')}
-        ${comp.mode === 'do' ? opt('commit', 'Commit khi xong') : ''}
+        ${comp.mode !== 'plan' ? opt('status', comp.mode === 'do' ? T('oStatusDo') : T('oStatusVerify')) : ''}
+        ${comp.mode === 'do' ? opt('test', T('oTest')) : ''}
+        ${opt('ask', T('oAsk'))}
+        ${comp.mode === 'do' ? opt('commit', T('oCommit')) : ''}
       </div>
-      <div><div class="dr-label">Ghi chú thêm</div>
-        <textarea id="drNote" rows="2" placeholder="VD: ưu tiên làm phần UI trước, giữ nguyên API cũ…">${esc(compNote)}</textarea></div>
+      <div><div class="dr-label">${T('notes')}</div>
+        <textarea id="drNote" rows="2" placeholder="${T('notesPh')}">${esc(compNote)}</textarea></div>
       <div style="display:flex;flex-direction:column;flex:1;min-height:0">
-        <div class="dr-label">Lệnh <span class="edited" id="drEdited" ${compDirty ? '' : 'hidden'}>· đã sửa tay</span><span class="grow"></span><button class="linkbtn" data-dr="regen" id="drRegen" ${compDirty ? '' : 'hidden'}>Tạo lại</button></div>
+        <div class="dr-label">${T('prompt')} <span class="edited" id="drEdited" ${compDirty ? '' : 'hidden'}>${T('edited')}</span><span class="grow"></span><button class="linkbtn" data-dr="regen" id="drRegen" ${compDirty ? '' : 'hidden'}>${T('regen')}</button></div>
         <textarea id="drPrompt" spellcheck="false"></textarea></div>
     </div>
     <div class="dr-foot"><span class="meta" id="drMeta"></span>
-      <button class="btn primary" data-dr="copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" stroke="currentColor" stroke-width="1.5"/></svg>Sao chép lệnh</button></div>`;
+      <button class="btn primary" data-dr="copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" stroke="currentColor" stroke-width="1.5"/></svg>${T('copy')}</button></div>`;
   const ta = $('#drPrompt');
   if (!compDirty || !ta.value) ta.value = compDirty && dr._text ? dr._text : buildPrompt();
   updateMeta();
 }
-function updateMeta() { const v = $('#drPrompt').value; $('#drMeta').textContent = `${v.split('\n').length} dòng · Ctrl+Enter để sao chép`; $('#drawer')._text = v; }
+function updateMeta() { const v = $('#drPrompt').value; $('#drMeta').textContent = T('lines', v.split('\n').length); $('#drawer')._text = v; }
 function refreshPrompt() { if (!compDirty) { $('#drPrompt').value = buildPrompt(); updateMeta(); } }
 
 async function copyPrompt() {
   const v = $('#drPrompt').value;
   try { await navigator.clipboard.writeText(v); }
   catch { const ta = $('#drPrompt'); ta.select(); document.execCommand('copy'); }
-  toast('Đã sao chép — dán vào Claude Code để AI làm');
+  toast(T('copied'));
 }
 
 $('#drawer').addEventListener('click', e => {
@@ -716,6 +829,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && document.activeElement.id === 'q') { state.q = ''; render(); }
 });
 $('#addBtn').onclick = () => openDialog();
+$('#langBtn').onclick = () => setLang(lang === 'vi' ? 'en' : 'vi');
 $('#themeBtn').onclick = () => {
   const dark = matchMedia('(prefers-color-scheme: dark)').matches;
   const cur = document.documentElement.dataset.theme || (dark ? 'dark' : 'light');
@@ -729,34 +843,34 @@ try { const t = localStorage.getItem('bv-theme'); if (t) document.documentElemen
 async function openDialog(p) {
   const dlg = $('#dlg'), f = $('#dlgForm');
   let color = p ? colorOf(p) : COLORS[projects.length % COLORS.length];
-  f.innerHTML = `<h3>${p ? 'Sửa dự án' : 'Thêm dự án'}</h3>
-    <div class="field"><label>Tên dự án</label><input name="name" value="${esc(p?.name || '')}" placeholder="${p ? '' : 'Để trống = lấy từ tiêu đề file'}"></div>
-    <div class="field"><label>Đường dẫn file BACKLOG (hoặc thư mục dự án)</label><input name="file" class="mono" value="${esc(p?.file || '')}" placeholder="D:\\Work\\my-game\\BACKLOG.md" ${p ? '' : 'required'}>
-      <div class="hint">File Markdown có bảng cột <code>ID</code> · <code>Việc</code> · <code>Ưu tiên</code> · <code>Trạng thái</code> (<code>[ ]</code> <code>[~]</code> <code>[x]</code>).</div>
+  f.innerHTML = `<h3>${p ? T('editProject') : T('addProject')}</h3>
+    <div class="field"><label>${T('name')}</label><input name="name" value="${esc(p?.name || '')}" placeholder="${p ? '' : T('namePh')}"></div>
+    <div class="field"><label>${T('filePath')}</label><input name="file" class="mono" value="${esc(p?.file || '')}" placeholder="D:\\Work\\my-game\\BACKLOG.md" ${p ? '' : 'required'}>
+      <div class="hint">${T('fileHint')}</div>
       <div class="sugg" id="sugg"></div></div>
-    <div class="field"><label>Lệnh build release</label><input name="build" class="mono" value="${esc(p?.build || '')}" placeholder="Để trống = tự dùng tools\\export_release.ps1 nếu có">
-      <div class="hint">Chạy trong thư mục dự án. VD: <code>powershell -File tools\\export_release.ps1</code></div></div>
-    <div class="field"><label>Màu</label><div class="swatches">${COLORS.map(c => `<button type="button" data-c="${c}" style="background:${c}" class="${c === color ? 'on' : ''}"></button>`).join('')}</div></div>
-    <div class="actions">${p ? '<button type="button" class="btn danger" id="delBtn">Xoá khỏi danh sách</button>' : ''}<span class="grow"></span>
-      <button type="button" class="btn" id="cancelBtn">Huỷ</button><button class="btn primary" value="ok">${p ? 'Lưu' : 'Thêm'}</button></div>`;
+    <div class="field"><label>${T('buildCmd')}</label><input name="build" class="mono" value="${esc(p?.build || '')}" placeholder="${T('buildCmdPh')}">
+      <div class="hint">${T('buildCmdHint')}</div></div>
+    <div class="field"><label>${T('color')}</label><div class="swatches">${COLORS.map(c => `<button type="button" data-c="${c}" style="background:${c}" class="${c === color ? 'on' : ''}"></button>`).join('')}</div></div>
+    <div class="actions">${p ? `<button type="button" class="btn danger" id="delBtn">${T('remove')}</button>` : ''}<span class="grow"></span>
+      <button type="button" class="btn" id="cancelBtn">${T('cancel')}</button><button class="btn primary" value="ok">${p ? T('save') : T('add')}</button></div>`;
   f.querySelectorAll('.swatches button').forEach(b => b.onclick = () => { color = b.dataset.c; f.querySelectorAll('.swatches button').forEach(x => x.classList.toggle('on', x === b)); });
   $('#cancelBtn').onclick = () => dlg.close();
   if (p) $('#delBtn').onclick = async () => {
-    if (!confirm(`Xoá "${p.name}" khỏi danh sách? (File BACKLOG không bị xoá)`)) return;
-    await api('/api/projects/' + p.id, { method: 'DELETE' }); dlg.close(); state.view = 'all'; await refresh(); toast('Đã xoá dự án');
+    if (!confirm(T('confirmRemove', p.name))) return;
+    await api('/api/projects/' + p.id, { method: 'DELETE' }); dlg.close(); state.view = 'all'; await refresh(); toast(T('removed'));
   };
   f.onsubmit = async e => {
     e.preventDefault();
     const body = { name: f.elements.namedItem('name').value, file: f.elements.namedItem('file').value, build: f.elements.namedItem('build').value, color };
     try {
       const res = p ? await api('/api/projects/' + p.id, { method: 'PUT', body }) : await api('/api/projects', { method: 'POST', body });
-      dlg.close(); state.view = res.id; await refresh(); toast(p ? 'Đã lưu' : 'Đã thêm dự án');
+      dlg.close(); state.view = res.id; await refresh(); toast(p ? T('savedProj') : T('added'));
     } catch (err) { toast(err.message); }
   };
   dlg.showModal();
   if (!p) {
     const found = await api('/api/scan').catch(() => []);
-    $('#sugg').innerHTML = found.length ? `<div class="hint">Tìm thấy trong thư mục làm việc:</div>` + found.map(x => `<button type="button" class="mono">${esc(x)}</button>`).join('') : '';
+    $('#sugg').innerHTML = found.length ? `<div class="hint">${T('found')}</div>` + found.map(x => `<button type="button" class="mono">${esc(x)}</button>`).join('') : '';
     $('#sugg').querySelectorAll('button').forEach(b => b.onclick = () => { f.elements.namedItem('file').value = b.textContent; });
   }
 }
@@ -764,7 +878,7 @@ async function openDialog(p) {
 // ---------- release build ----------
 let buildPid = null, buildTimer = null, buildWasRunning = false;
 const bumpName = n => n && /\d+$/.test(n) ? n.replace(/\d+$/, d => +d + 1) : n;
-const fmtDur = ms => { const s = Math.round(ms / 1000); return s < 60 ? `${s} s` : `${Math.floor(s / 60)} ph ${s % 60} s`; };
+const fmtDur = ms => { const s = Math.round(ms / 1000); return s < 60 ? `${s} s` : `${Math.floor(s / 60)} ${T('min')} ${s % 60} s`; };
 
 async function openBuild(p) {
   buildPid = p.id;
@@ -773,25 +887,25 @@ async function openBuild(p) {
   const v = info.version;
   $('#bdlgBody').innerHTML = `
     <h3>Build release — ${esc(p.name)}</h3>
-    <div class="b-cmd mono">${info.cmd ? `&gt; ${esc(info.cmd)}${info.auto ? ' <span class="tag">tự phát hiện</span>' : ''}` : '<span style="color:var(--p0)">Chưa có lệnh build. Bấm Sửa dự án → "Lệnh build release".</span>'}</div>
+    <div class="b-cmd mono">${info.cmd ? `&gt; ${esc(info.cmd)}${info.auto ? ` <span class="tag">${T('autoDetected')}</span>` : ''}` : `<span style="color:var(--p0)">${T('noBuildCmd')}</span>`}</div>
     ${v ? `<div class="b-ver">
-      <span>Hiện tại <b class="mono">${esc(v.name ?? '?')}</b> (code <b class="mono">${v.code ?? '?'}</b>)</span>
-      <label><input type="checkbox" id="bBump" checked>Tăng version trước khi build</label>
+      <span>${T('current')} <b class="mono">${esc(v.name ?? '?')}</b> (code <b class="mono">${v.code ?? '?'}</b>)</span>
+      <label><input type="checkbox" id="bBump" checked>${T('bump')}</label>
       <label>name <input type="text" id="bName" value="${esc(bumpName(v.name) ?? '')}"></label>
       <label>code <input type="number" id="bCode" value="${v.code != null ? v.code + 1 : ''}"></label>
     </div>` : ''}
-    <pre class="b-log" id="bLog">${esc(info.log || 'Chưa build lần nào trong phiên này.')}</pre>
+    <pre class="b-log" id="bLog">${esc(info.log || T('noBuildYet'))}</pre>
     <div class="b-status" id="bStatus"></div>
     <div class="actions">
-      <button type="button" class="btn danger" id="bStop" hidden>Dừng build</button><span class="grow"></span>
-      <button type="button" class="btn" id="bClose">Đóng</button>
+      <button type="button" class="btn danger" id="bStop" hidden>${T('stopBuild')}</button><span class="grow"></span>
+      <button type="button" class="btn" id="bClose">${T('close')}</button>
       <button type="button" class="btn primary" id="bStart" ${info.cmd ? '' : 'disabled'}>Build</button>
     </div>`;
   $('#bClose').onclick = () => $('#bdlg').close();
-  $('#bStop').onclick = async () => { if (confirm('Dừng build đang chạy?')) showBuild(await api(`/api/projects/${p.id}/build`, { method: 'DELETE' })); };
+  $('#bStop').onclick = async () => { if (confirm(T('confirmStop'))) showBuild(await api(`/api/projects/${p.id}/build`, { method: 'DELETE' })); };
   $('#bStart').onclick = async () => {
     const bump = v && $('#bBump').checked ? { name: $('#bName').value.trim() || v.name, code: +$('#bCode').value || v.code } : null;
-    if (bump && bump.code <= v.code && !confirm(`Code ${bump.code} không lớn hơn ${v.code} — Google Play sẽ từ chối. Vẫn build?`)) return;
+    if (bump && bump.code <= v.code && !confirm(T('lowCode', bump.code, v.code))) return;
     try { $('#bLog').textContent = ''; showBuild(await api(`/api/projects/${p.id}/build`, { method: 'POST', body: { bump } })); refresh(true); }
     catch (e) { toast(e.message); }
   };
@@ -806,11 +920,11 @@ function showBuild(info) {
   if (log && info.log) { const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40; log.textContent = info.log; if (atEnd) log.scrollTop = log.scrollHeight; }
   const st = $('#bStatus');
   if (st) st.innerHTML = info.running
-    ? `<span class="spin" style="color:var(--doing)"></span>Đang build… ${fmtDur(Date.now() - info.startedAt)}`
+    ? `<span class="spin" style="color:var(--doing)"></span>${T('building')} ${fmtDur(Date.now() - info.startedAt)}`
     : info.endedAt
       ? (info.exitCode === 0
-        ? `<span class="ok">✓ Build xong</span> sau ${fmtDur(info.endedAt - info.startedAt)}${info.bumped ? ` · version ${esc(info.bumped.to.name)} (code ${info.bumped.to.code})` : ''}`
-        : `<span class="bad">✕ Build lỗi</span> (mã ${info.exitCode})${info.reverted ? ' · đã trả version về như cũ' : ''}`)
+        ? `<span class="ok">✓ ${T('buildOk')}</span> ${T('after', fmtDur(info.endedAt - info.startedAt))}${info.bumped ? ` · version ${esc(info.bumped.to.name)} (code ${info.bumped.to.code})` : ''}`
+        : `<span class="bad">✕ ${T('buildFail')}</span> (${T('exitCode', info.exitCode)})${info.reverted ? ' · ' + T('reverted') : ''}`)
       : '';
   if ($('#bStop')) $('#bStop').hidden = !info.running;
   if ($('#bStart')) $('#bStart').disabled = info.running || !info.cmd;
@@ -827,7 +941,7 @@ async function pollBuild() {
     buildWasRunning = false; refresh(true);
     const bp = projects.find(p => p.id === buildPid);
     if ($('#bdlg').open && bp) openBuild(bp);   // show the new current version
-    if (!$('#bdlg').open) toast(info.exitCode === 0 ? `Build ${projects.find(p => p.id === buildPid)?.name} xong ✓` : 'Build lỗi — mở lại để xem log');
+    if (!$('#bdlg').open) toast(info.exitCode === 0 ? T('buildDoneToast', projects.find(p => p.id === buildPid)?.name) : T('buildFailToast'));
   }
 }
 $('#bdlg').addEventListener('close', () => { if (buildWasRunning) { clearTimeout(buildTimer); buildTimer = setTimeout(pollBuild, 3000); } });
@@ -842,13 +956,14 @@ addEventListener('pagehide', () => navigator.sendBeacon('/api/bye?c=' + clientId
 addEventListener('pageshow', e => { if (e.persisted) ping(); });
 
 $('#powerBtn').onclick = async () => {
-  if (!confirm('Tắt server Backlog Viewer?\nMở lại bằng shortcut hoặc start.cmd.')) return;
+  if (!confirm(T('confirmShutdown'))) return;
   await fetch('/api/shutdown', { method: 'POST', headers: { 'X-BV': '1' } }).catch(() => {});
   document.body.innerHTML = `<div style="height:100vh;display:grid;place-items:center;text-align:center;color:var(--muted)">
-    <div><div style="font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px">Đã tắt server</div>
-    Có thể đóng tab này. Mở lại bằng shortcut <b>Backlog Viewer</b>.</div></div>`;
+    <div><div style="font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px">${T('shutdownTitle')}</div>
+    ${T('shutdownBody')}</div></div>`;
 };
 
+applyLang();
 refresh();
 setInterval(() => { if (!document.hidden && !$('#dlg').open && document.activeElement.id !== 'q') refresh(true); }, 4000);
 </script>
