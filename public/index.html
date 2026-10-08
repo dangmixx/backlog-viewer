@@ -67,6 +67,8 @@ main{overflow:auto;min-width:0}
 .wrap{max-width:1180px;margin:0 auto;padding:28px 32px 60px}
 .head{display:flex;align-items:flex-start;gap:16px;margin-bottom:6px}
 .head h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em}
+.ver{display:inline-block;font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;font-size:12px;font-weight:600;letter-spacing:0;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin-left:10px;vertical-align:4px}
+.pcard .ver{font-size:11px;margin-left:0;vertical-align:1px}
 .head .sub{color:var(--muted);margin-top:4px;max-width:720px}
 .path{color:var(--faint);font-size:12px;margin-top:6px;word-break:break-all}
 
@@ -332,6 +334,7 @@ const I18N = {
     rStatus: 'Đổi [~] khi bắt đầu, [x] khi xong.', rTest: 'Chạy test trước khi báo xong.', rCommit: 'Commit khi xong.',
     rRevert: 'Thiếu thì đổi về [~].', rAsk: 'Việc cần tôi thì dừng lại hỏi.',
     editProject: 'Sửa dự án', name: 'Tên dự án', namePh: 'Để trống = lấy từ tiêu đề file',
+    version: 'Version', versionHint: 'Để trống = lấy dòng **Version:** trong BACKLOG.md, không có thì lấy version/name trong export_presets.cfg (Godot)',
     filePath: 'Đường dẫn file BACKLOG (hoặc thư mục dự án)', browse: 'Chọn file…', picking: 'Đang mở…',
     fileHint: 'File Markdown có bảng cột <code>ID</code> · <code>Task</code> · <code>Priority</code> · <code>Status</code> (<code>[ ]</code> <code>[~]</code> <code>[x]</code>).',
     buildCmd: 'Lệnh build release', buildCmdPh: 'Để trống = tự dùng tools\\export_release.ps1 nếu có',
@@ -379,6 +382,7 @@ const I18N = {
     rStatus: 'Set [~] when starting, [x] when done.', rTest: 'Run the tests before reporting done.', rCommit: 'Commit when done.',
     rRevert: 'If incomplete, set it back to [~].', rAsk: 'Stop and ask me for anything only I can do.',
     editProject: 'Edit project', name: 'Project name', namePh: 'Empty = take it from the file title',
+    version: 'Version', versionHint: 'Empty = the **Version:** line in BACKLOG.md, else version/name in export_presets.cfg (Godot)',
     filePath: 'BACKLOG file path (or project folder)', browse: 'Browse…', picking: 'Opening…',
     fileHint: 'Markdown with table columns <code>ID</code> · <code>Task</code> · <code>Priority</code> · <code>Status</code> (<code>[ ]</code> <code>[~]</code> <code>[x]</code>).',
     buildCmd: 'Release build command', buildCmdPh: 'Empty = use tools\\export_release.ps1 when present',
@@ -455,7 +459,7 @@ async function manualRefresh(btn) {
 async function refresh(silent) {
   try {
     const next = await api('/api/projects');
-    const sig = j => JSON.stringify(j.map(p => [p.id, p.name, p.color, p.file, p.mtime, p.building, p.canBuild]));
+    const sig = j => JSON.stringify(j.map(p => [p.id, p.name, p.color, p.file, p.mtime, p.building, p.canBuild, p.version]));
     if (silent && sig(next) === sig(projects)) return;
     projects = next;
     if (state.view !== 'all' && !projects.some(p => p.id === state.view)) state.view = 'all';
@@ -507,11 +511,13 @@ function renderAll() {
   </div>`;
 }
 
+const verTag = p => p.version ? `<span class="ver">v${esc(p.version.replace(/^v/i, ''))}</span>` : '';
+
 function projectCard(p, i) {
   const c = counts(p.tickets);
   const doing = p.tickets.filter(t => t.status === 'doing').slice(0, 3);
   return `<div class="pcard" data-view="${esc(p.id)}">
-    <div class="top"><span class="dot" style="background:${colorOf(p, i)}"></span><h3>${esc(p.name)}</h3><span class="big">${c.pct}%</span></div>
+    <div class="top"><span class="dot" style="background:${colorOf(p, i)}"></span><h3>${esc(p.name)}</h3>${verTag(p)}<span class="big">${c.pct}%</span></div>
     <div class="desc">${p.error ? `<span style="color:var(--p0)">${esc(p.error)}</span>` : md(p.intro.split('\n')[0] || p.file)}</div>
     ${bar(c)}
     <div class="nums"><span><b>${c.todo}</b> ${T('nTodo')}</span><span><b>${c.doing}</b> ${T('nDoing')}</span><span><b>${c.done}</b> ${T('nDone')}</span></div>
@@ -540,7 +546,7 @@ function renderProject(p) {
 
   $('#main').innerHTML = `<div class="wrap">
     <div class="head">${menuBtn}
-      <div class="grow"><h1><span class="dot" style="display:inline-block;width:12px;height:12px;border-radius:4px;background:${colorOf(p)};margin-right:10px;vertical-align:2px"></span>${esc(p.name)}</h1>
+      <div class="grow"><h1><span class="dot" style="display:inline-block;width:12px;height:12px;border-radius:4px;background:${colorOf(p)};margin-right:10px;vertical-align:2px"></span>${esc(p.name)}${verTag(p)}</h1>
         ${p.intro ? `<div class="sub">${md(p.intro)}</div>` : ''}
         <div class="path mono">${esc(p.file)}</div></div>
       ${refreshBtn()}
@@ -913,6 +919,8 @@ async function openDialog(p) {
         <button type="button" class="btn" id="pickBtn"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>${T('browse')}</button></div>
       <div class="hint">${T('fileHint')}</div>
       <div class="sugg" id="sugg"></div></div>
+    <div class="field"><label>${T('version')}</label><input name="version" class="mono" value="${esc(p?.versionManual || '')}" placeholder="${p?.version && !p.versionManual ? esc(p.version) : '1.0.0'}">
+      <div class="hint">${T('versionHint')}</div></div>
     <div class="field"><label>${T('buildCmd')}</label><input name="build" class="mono" value="${esc(p?.build || '')}" placeholder="${T('buildCmdPh')}">
       <div class="hint">${T('buildCmdHint')}</div></div>
     <div class="field"><label>${T('color')}</label><div class="swatches">${COLORS.map(c => `<button type="button" data-c="${c}" style="background:${c}" class="${c === color ? 'on' : ''}"></button>`).join('')}</div></div>
@@ -939,7 +947,7 @@ async function openDialog(p) {
   };
   f.onsubmit = async e => {
     e.preventDefault();
-    const body = { name: f.elements.namedItem('name').value, file: f.elements.namedItem('file').value, build: f.elements.namedItem('build').value, color };
+    const body = { name: f.elements.namedItem('name').value, file: f.elements.namedItem('file').value, build: f.elements.namedItem('build').value, version: f.elements.namedItem('version').value, color };
     try {
       const res = p ? await api('/api/projects/' + p.id, { method: 'PUT', body }) : await api('/api/projects', { method: 'POST', body });
       dlg.close(); state.view = res.id; await refresh(); toast(p ? T('savedProj') : T('added'));

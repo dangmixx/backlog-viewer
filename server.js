@@ -115,7 +115,7 @@ function parseBacklog(text) {
   const lines = text.split(/\r?\n/);
   const sections = [];
   const tickets = [];
-  let title = '', intro = [], section = null, table = null;
+  let title = '', intro = [], section = null, table = null, version = null;
   const legend = [];
 
   for (let i = 0; i < lines.length; i++) {
@@ -161,7 +161,11 @@ function parseBacklog(text) {
     }
     table = null;
     if (section) section.note.push(line);
-    else if (title) { if (/^\*\*.+?:\*\*/.test(line)) legend.push(line); else intro.push(line); }
+    else if (title) {
+      const v = line.match(/^\*\*Version:\*\*\s*`?v?([^\s`·]+)/i);   // header line, not a legend entry
+      if (v) version = v[1];
+      else if (/^\*\*.+?:\*\*/.test(line)) legend.push(line); else intro.push(line);
+    }
   }
   return {
     title,
@@ -169,6 +173,7 @@ function parseBacklog(text) {
     intro: (intro.join('\n').split(/\n\s*\n/).map(s => s.trim())
       .find(s => s && !/^(\*\*|#|\||---)/.test(s)) || ''),
     legend,
+    version,
     sections: sections.map(s => ({ name: s.name, note: s.note.join('\n').trim() })),
     tickets,
   };
@@ -325,10 +330,13 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.
 
 function projectPayload(p, lang) {
   const text = safeRead(p.file);
-  const extra = { building: !!builds.get(p.id)?.running, canBuild: !!buildCmd(p).cmd };
-  if (text == null) return { ...p, ...extra, error: msg(lang, 'cantRead'), tickets: [], sections: [] };
+  const extra = { building: !!builds.get(p.id)?.running, canBuild: !!buildCmd(p).cmd, versionManual: p.version || '' };
+  if (text == null) return { ...p, ...extra, version: p.version || null, error: msg(lang, 'cantRead'), tickets: [], sections: [] };
   let mtime = 0; try { mtime = fs.statSync(p.file).mtimeMs; } catch {}
-  return { ...p, ...extra, mtime, ...parseBacklog(text) };
+  const b = parseBacklog(text);
+  // version: typed in the edit dialog > **Version:** line in BACKLOG.md > Godot export_presets.cfg
+  const version = p.version || b.version || readVersion(p)?.name || null;
+  return { ...p, ...extra, mtime, ...b, version };
 }
 
 http.createServer(async (req, res) => {
@@ -374,6 +382,7 @@ http.createServer(async (req, res) => {
         if (b.name) p.name = String(b.name).trim();
         if (b.color) p.color = b.color;
         if (b.build) p.build = String(b.build).trim();
+        if (b.version) p.version = String(b.version).trim().replace(/^v/i, '') || null;
         list.push(p); saveProjects(list);
         return send(res, 201, projectPayload(p, lang));
       }
@@ -387,6 +396,7 @@ http.createServer(async (req, res) => {
           if (b.name != null) list[i].name = String(b.name).trim() || list[i].name;
           if (b.color !== undefined) list[i].color = b.color || null;
           if (b.build !== undefined) list[i].build = String(b.build || '').trim() || null;
+          if (b.version !== undefined) list[i].version = String(b.version || '').trim().replace(/^v/i, '') || null;
           if (b.file) {
             const f = path.resolve(String(b.file).trim());
             if (!fs.existsSync(f)) return send(res, 400, { error: msg(lang, 'noFile') });
