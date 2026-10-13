@@ -11,21 +11,21 @@
 :root{
   --bg:#f7f7f9; --panel:#fff; --sub:#f1f1f4; --line:#e6e6eb; --text:#18181b; --muted:#71717a; --faint:#a1a1aa;
   --accent:#6366f1; --accent-soft:#eef0ff;
-  --todo:#71717a; --todo-bg:#f1f1f4; --doing:#d97706; --doing-bg:#fef3c7; --done:#16a34a; --done-bg:#dcfce7;
+  --todo:#71717a; --todo-bg:#f1f1f4; --doing:#d97706; --doing-bg:#fef3c7; --done:#16a34a; --done-bg:#dcfce7; --cancel:#a1a1aa; --cancel-bg:#f1f1f4;
   --p0:#dc2626; --p0-bg:#fee2e2; --p1:#2563eb; --p1-bg:#dbeafe; --p2:#71717a; --p2-bg:#f1f1f4;
   --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04); --r:12px;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0c0c0f; --panel:#16161a; --sub:#1e1e23; --line:#2a2a31; --text:#f4f4f5; --muted:#a1a1aa; --faint:#63636b;
   --accent:#818cf8; --accent-soft:#23243a;
-  --todo:#a1a1aa; --todo-bg:#26262c; --doing:#fbbf24; --doing-bg:#3a2e12; --done:#4ade80; --done-bg:#15301f;
+  --todo:#a1a1aa; --todo-bg:#26262c; --doing:#fbbf24; --doing-bg:#3a2e12; --done:#4ade80; --done-bg:#15301f; --cancel:#71717a; --cancel-bg:#202024;
   --p0:#f87171; --p0-bg:#3b1717; --p1:#60a5fa; --p1-bg:#172a45; --p2:#a1a1aa; --p2-bg:#26262c;
   --shadow:none;
 }}
 :root[data-theme="dark"]{
   --bg:#0c0c0f; --panel:#16161a; --sub:#1e1e23; --line:#2a2a31; --text:#f4f4f5; --muted:#a1a1aa; --faint:#63636b;
   --accent:#818cf8; --accent-soft:#23243a;
-  --todo:#a1a1aa; --todo-bg:#26262c; --doing:#fbbf24; --doing-bg:#3a2e12; --done:#4ade80; --done-bg:#15301f;
+  --todo:#a1a1aa; --todo-bg:#26262c; --doing:#fbbf24; --doing-bg:#3a2e12; --done:#4ade80; --done-bg:#15301f; --cancel:#71717a; --cancel-bg:#202024;
   --p0:#f87171; --p0-bg:#3b1717; --p1:#60a5fa; --p1-bg:#172a45; --p2:#a1a1aa; --p2-bg:#26262c;
   --shadow:none;
 }
@@ -114,6 +114,7 @@ select.sel{border:1px solid var(--line);background:var(--panel);border-radius:8p
 .row .id{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;font-size:12px;color:var(--muted);padding-top:2px}
 .row .t{min-width:0;overflow-wrap:anywhere}
 .row.done .t{color:var(--muted)}
+.row.cancel .t,.row.cancel .id{color:var(--faint);text-decoration:line-through}
 .row .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
 .row .needs{font-size:12px;color:var(--doing);display:flex;gap:4px;align-items:center}
 .row .proj{font-size:12px;color:var(--muted)}
@@ -122,7 +123,7 @@ select.sel{border:1px solid var(--line);background:var(--panel);border-radius:8p
 .tag.P0{background:var(--p0-bg);color:var(--p0)} .tag.P1{background:var(--p1-bg);color:var(--p1)} .tag.P2{background:var(--p2-bg);color:var(--p2)}
 .st{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:99px;border:0;cursor:pointer;white-space:nowrap}
 .st::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
-.st.todo{background:var(--todo-bg);color:var(--todo)} .st.doing{background:var(--doing-bg);color:var(--doing)} .st.done{background:var(--done-bg);color:var(--done)}
+.st.todo{background:var(--todo-bg);color:var(--todo)} .st.doing{background:var(--doing-bg);color:var(--doing)} .st.done{background:var(--done-bg);color:var(--done)} .st.cancel{background:var(--cancel-bg);color:var(--cancel)}
 .st.none{background:none;color:var(--faint);cursor:default} .st.none::before{background:transparent;border:1px dashed currentColor}
 .st:not(.none):hover{filter:brightness(.95)}
 
@@ -304,7 +305,7 @@ const md = s => esc(s)
 // ---------- i18n ----------
 const I18N = {
   vi: {
-    todo: 'Chưa làm', doing: 'Đang làm', done: 'Xong',
+    todo: 'Chưa làm', doing: 'Đang làm', done: 'Xong', stCancel: 'Huỷ', nCancel: 'huỷ',
     addProject: 'Thêm dự án', powerTitle: 'Tắt server', themeTitle: 'Đổi giao diện sáng/tối', langTitle: 'Switch to English',
     noServer: 'Không kết nối được server', refreshTitle: 'Làm mới (đọc lại các file BACKLOG)', refreshed: 'Đã cập nhật',
     overview: 'Tổng quan', projectsN: n => `Dự án · ${n}`, noProjectsNav: 'Chưa có dự án',
@@ -352,7 +353,7 @@ const I18N = {
     shutdownTitle: 'Đã tắt server', shutdownBody: 'Có thể đóng tab này. Mở lại bằng shortcut <b>Backlog Viewer</b>.',
   },
   en: {
-    todo: 'To do', doing: 'In progress', done: 'Done',
+    todo: 'To do', doing: 'In progress', done: 'Done', stCancel: 'Cancelled', nCancel: 'cancelled',
     addProject: 'Add project', powerTitle: 'Stop server', themeTitle: 'Toggle light/dark', langTitle: 'Chuyển sang tiếng Việt',
     noServer: 'Cannot reach the server', refreshTitle: 'Refresh (re-read the BACKLOG files)', refreshed: 'Up to date',
     overview: 'Overview', projectsN: n => `Projects · ${n}`, noProjectsNav: 'No projects yet',
@@ -402,7 +403,7 @@ const I18N = {
 };
 let lang = (() => { try { const l = localStorage.getItem('bv-lang'); if (l in I18N) return l; } catch {} return 'vi'; })();
 function T(k, ...a) { const v = I18N[lang][k] ?? I18N.vi[k] ?? k; return typeof v === 'function' ? v(...a) : v; }
-const stl = s => s === 'none' ? '—' : T(s);
+const stl = s => s === 'none' ? '—' : s === 'cancel' ? T('stCancel') : T(s);
 function applyLang() {
   document.documentElement.lang = lang;
   $('#addTxt').textContent = T('addProject');
@@ -427,8 +428,8 @@ function persist() { try { localStorage.setItem('bv-state', JSON.stringify({ ...
 
 const colorOf = (p, i) => p.color || COLORS[(i ?? projects.indexOf(p)) % COLORS.length];
 function counts(ts) {
-  const c = { todo: 0, doing: 0, done: 0, none: 0, total: 0 };
-  ts.forEach(t => { c[t.status]++; if (t.hasStatus) c.total++; });
+  const c = { todo: 0, doing: 0, done: 0, cancel: 0, none: 0, total: 0 };
+  ts.forEach(t => { c[t.status]++; if (t.hasStatus && t.status !== 'cancel') c.total++; });
   c.pct = c.total ? Math.round(c.done / c.total * 100) : 0;
   return c;
 }
@@ -520,7 +521,7 @@ function projectCard(p, i) {
     <div class="top"><span class="dot" style="background:${colorOf(p, i)}"></span><h3>${esc(p.name)}</h3>${verTag(p)}<span class="big">${c.pct}%</span></div>
     <div class="desc">${p.error ? `<span style="color:var(--p0)">${esc(p.error)}</span>` : md(p.intro.split('\n')[0] || p.file)}</div>
     ${bar(c)}
-    <div class="nums"><span><b>${c.todo}</b> ${T('nTodo')}</span><span><b>${c.doing}</b> ${T('nDoing')}</span><span><b>${c.done}</b> ${T('nDone')}</span></div>
+    <div class="nums"><span><b>${c.todo}</b> ${T('nTodo')}</span><span><b>${c.doing}</b> ${T('nDoing')}</span><span><b>${c.done}</b> ${T('nDone')}</span>${c.cancel ? `<span><b>${c.cancel}</b> ${T('nCancel')}</span>` : ''}</div>
     ${doing.length ? `<div class="cur">${doing.map(t => `<div><span class="mono">${esc(t.id)}</span><span>${esc(t.title.replace(/[`*]/g, ''))}</span></div>`).join('')}</div>` : ''}
   </div>`;
 }
@@ -559,7 +560,7 @@ function renderProject(p) {
     ${statCards(c)}
     <div class="toolbar">
       <div class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><input id="q" placeholder="${T('searchPh')}" value="${esc(state.q)}"></div>
-      ${state.mode === 'board' ? '' : `<div class="seg">${segBtn('open', T('fOpen'))}${segBtn('doing', T('doing'))}${segBtn('done', T('done'))}${segBtn('all', T('fAll'))}</div>`}
+      ${state.mode === 'board' ? '' : `<div class="seg">${segBtn('open', T('fOpen'))}${segBtn('doing', T('doing'))}${segBtn('done', T('done'))}${c.cancel ? segBtn('cancel', T('stCancel')) : ''}${segBtn('all', T('fAll'))}</div>`}
       ${prios.length ? `<div class="seg"><button class="${state.prio === 'all' ? 'on' : ''}" data-prio="all">${T('anyPrio')}</button>${prios.map(x => `<button class="${state.prio === x ? 'on' : ''}" data-prio="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''}
       <select class="sel" id="secSel"><option value="all">${T('anyMs')}</option>${secs.map(s => `<option ${state.section === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
       <div class="seg"><button class="${state.mode === 'list' ? 'on' : ''}" data-mode="list">${T('list')}</button><button class="${state.mode === 'board' ? 'on' : ''}" data-mode="board">${T('board')}</button></div>
@@ -615,11 +616,11 @@ const statusBtn = (t, p) => {
 
 function board(shown) {
   const p = projects.find(x => x.id === state.view);
-  const cols = ['todo', 'doing', 'done'].map(k => [k, T(k)]);
+  const cols = ['todo', 'doing', 'done', ...(shown.some(t => t.status === 'cancel') ? ['cancel'] : [])].map(k => [k, stl(k)]);
   const nos = shown.filter(t => !t.hasStatus);
   return `<div class="board">${cols.map(([k, label]) => {
     const ts = shown.filter(t => t.status === k).concat(k === 'todo' ? nos : []);
-    const lim = k === 'done' ? 30 : 200;
+    const lim = k === 'done' || k === 'cancel' ? 30 : 200;
     return `<div class="col"><h4><span class="st ${k}" style="padding:0;background:none"></span>${label}<span class="n">${ts.length}</span></h4>
       ${ts.slice(0, lim).map(t => `<div class="card ${isPicked(t, p)}" ${pickAttr(t, p)}><div class="top"><span class="id">${esc(t.id)}</span>${t.priority ? `<span class="tag ${esc(t.priority)}">${esc(t.priority)}</span>` : ''}</div>
         <div class="t">${md(t.title)}</div><div class="foot"><span class="sec">${md(t.section)}</span>${statusBtn(t, p)}</div></div>`).join('')}
@@ -656,9 +657,9 @@ function openStatusMenu(btn) {
   const m = document.createElement('div');
   m.id = 'stMenu';
   m.innerHTML = `<div class="sm-h mono">${esc(tid)}</div>` +
-    ['todo', 'doing', 'done'].map(s => `<button data-to="${s}" ${s === shown ? 'disabled' : ''}>
+    ['todo', 'doing', 'done', 'cancel'].map(s => `<button data-to="${s}" ${s === shown ? 'disabled' : ''}>
       <span class="st ${s}" style="padding:0;background:none"></span>${stl(s)}${s === shown ? '<span class="ck">✓</span>' : ''}</button>`).join('') +
-    (pd ? `<div class="sm-sep"></div><button data-to="cancel" class="sm-cancel">${T('cancelChange', stl(pd.prev))}</button>` : '');
+    (pd ? `<div class="sm-sep"></div><button data-to="keep" class="sm-cancel">${T('cancelChange', stl(pd.prev))}</button>` : '');
   document.body.appendChild(m);
   const r = btn.getBoundingClientRect(), mw = m.offsetWidth, mh = m.offsetHeight;
   m.style.left = Math.max(8, Math.min(r.right - mw, innerWidth - mw - 8)) + 'px';
@@ -667,7 +668,7 @@ function openStatusMenu(btn) {
     const b = e.target.closest('[data-to]');
     if (!b || b.disabled) return;
     closeStatusMenu();
-    if (b.dataset.to === 'cancel') return cancelPending(key);
+    if (b.dataset.to === 'keep') return cancelPending(key);
     if (pd && b.dataset.to === pd.prev) return cancelPending(key);   // back to where it was
     queueStatus({ pid, tid, line: +line, prev: pd ? pd.prev : cur, next: b.dataset.to });
   };

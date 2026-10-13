@@ -23,7 +23,7 @@ Markdown with `##` sections (milestones) and tables that have an `ID` column. A 
 | `Priority` | `P0`, `P1`, `P2`… | `Prio`, `Ưu tiên` |
 | `Estimate` | Size, e.g. `S`, `M`, `L` | `Est`, `Effort`, `Ước lượng` |
 | `Needs you` | What only a person can do (device, account, review) | `Owner`, `Assignee`, `Cần bạn` |
-| `Status` | `[ ]` to do · `[~]` in progress · `[x]` done | `State`, `Trạng thái` |
+| `Status` | `[ ]` to do · `[~]` in progress · `[x]` done · `[-]` cancelled (struck through, left out of the progress %) | `State`, `Trạng thái` |
 
 Column names are case-insensitive and can be in any order; only `ID` is required. Rows without a `Status` column show as "Unscheduled".
 

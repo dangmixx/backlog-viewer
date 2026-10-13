@@ -184,7 +184,7 @@ function setStatus(file, ticketId, line, status, lang) {
   const text = fs.readFileSync(file, 'utf8');
   const eol = text.includes('\r\n') ? '\r\n' : '\n';
   const lines = text.split(/\r?\n/);
-  const mark = { todo: '[ ]', doing: '[~]', done: '[x]' }[status];
+  const mark = { todo: '[ ]', doing: '[~]', done: '[x]', cancel: '[-]' }[status];
   if (!mark) throw new Error('Bad status');
   // locate row: prefer given line, fall back to search by ID
   const isRow = l => /^\s*\|/.test(l) && splitRow(l)[0].replace(/[*~`]/g, '').trim() === ticketId;
