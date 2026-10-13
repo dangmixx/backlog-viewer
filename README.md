@@ -36,6 +36,17 @@ Column names are case-insensitive and can be in any order; only `ID` is required
 | CORE-02 | Play on a real phone | P1 | S | test device | [ ] |
 ```
 
+### Split backlog
+
+A long backlog can keep one file per milestone in a `backlog/` folder next to `BACKLOG.md`, so an AI agent working on one ticket reads only that milestone. `BACKLOG.md` keeps the title, version and legend and links to the files:
+
+```
+- [M0 — Core](backlog/M0.md)
+- [M1 — Levels](backlog/M1.md)
+```
+
+Each file holds its `## M0 — …` heading and ticket table. Files are read in link order, then any unlinked `backlog/*.md` by name. Status changes are written to the file the ticket is in, and the AI prompt points at that file when all picked tickets share it.
+
 Changing a status in the app rewrites only the `[ ]` / `[~]` / `[x]` cell of that row.
 
 ## Features

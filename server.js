@@ -328,15 +328,48 @@ function readBody(req) {
 }
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
 
-function projectPayload(p, lang) {
-  const text = safeRead(p.file);
-  const extra = { building: !!builds.get(p.id)?.running, canBuild: !!buildCmd(p).cmd, versionManual: p.version || '' };
-  if (text == null) return { ...p, ...extra, version: p.version || null, error: msg(lang, 'cantRead'), tickets: [], sections: [] };
-  let mtime = 0; try { mtime = fs.statSync(p.file).mtimeMs; } catch {}
+// A long backlog can be split: BACKLOG.md keeps the header and links to milestone files in a
+// backlog/ folder next to it ("- [M3 — Level](backlog/M3.md)"). Those files are read in link
+// order, then any unlinked backlog/*.md by name, and their sections and tickets are appended.
+function partFiles(main, text) {
+  const dir = path.join(path.dirname(main), 'backlog');
+  const seen = new Set(), out = [];
+  const add = f => { const k = f.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(f); } };
+  for (const m of text.matchAll(/\]\((?:\.\/)?(backlog\/[^)\s#]+\.md)\)/gi)) {
+    const f = path.join(path.dirname(main), decodeURIComponent(m[1]));
+    if (path.dirname(f) === dir && fs.existsSync(f)) add(f);
+  }
+  let names = [];
+  try { names = fs.readdirSync(dir).filter(n => /\.md$/i.test(n)); } catch {}
+  names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).forEach(n => add(path.join(dir, n)));
+  return out;
+}
+
+function readBacklog(file) {
+  const text = safeRead(file);
+  if (text == null) return null;
+  let mtime = 0; try { mtime = fs.statSync(file).mtimeMs; } catch {}
   const b = parseBacklog(text);
+  b.tickets.forEach(t => (t.file = file));
+  for (const f of partFiles(file, text)) {
+    const part = safeRead(f);
+    if (part == null) continue;
+    try { mtime = Math.max(mtime, fs.statSync(f).mtimeMs); } catch {}
+    const pb = parseBacklog(part);
+    b.sections.push(...pb.sections);
+    b.tickets.push(...pb.tickets.map(t => ({ ...t, file: f })));
+  }
+  b.mtime = mtime;
+  return b;
+}
+
+function projectPayload(p, lang) {
+  const extra = { building: !!builds.get(p.id)?.running, canBuild: !!buildCmd(p).cmd, versionManual: p.version || '' };
+  const b = readBacklog(p.file);
+  if (b == null) return { ...p, ...extra, version: p.version || null, error: msg(lang, 'cantRead'), tickets: [], sections: [] };
   // version: typed in the edit dialog > **Version:** line in BACKLOG.md > Godot export_presets.cfg
   const version = p.version || b.version || readVersion(p)?.name || null;
-  return { ...p, ...extra, mtime, ...b, version };
+  return { ...p, ...extra, ...b, version };
 }
 
 http.createServer(async (req, res) => {
@@ -411,7 +444,11 @@ http.createServer(async (req, res) => {
         const p = list.find(p => p.id === parts[2]);
         if (!p) return send(res, 404, { error: msg(lang, 'noProject') });
         const b = await readBody(req);
-        setStatus(p.file, decodeURIComponent(parts[4]), Number(b.line), b.status, lang);
+        // the ticket may live in a backlog/ part file: find it by ID, prefer the one on the given line
+        const tid = decodeURIComponent(parts[4]);
+        const found = (readBacklog(p.file)?.tickets || []).filter(t => t.id === tid);
+        const t = found.find(t => t.line === Number(b.line)) || found[0];
+        setStatus(t ? t.file : p.file, tid, Number(b.line), b.status, lang);
         return send(res, 200, projectPayload(p, lang));
       }
       // POST /api/pick-file {dir} → native Windows "Open file" dialog, returns {path} (null = cancelled)

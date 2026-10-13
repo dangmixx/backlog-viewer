@@ -778,7 +778,9 @@ function buildPrompt() {
   if (comp.ask) rules.push(T('rAsk'));
   // whole milestone → just its code; the agent reads which tickets are still open from BACKLOG.md
   const what = compMs ? msCode(compMs.section) : ids;
-  return [`${p.name} — ${p.file} — ${verb} ${what}`, rules.join(' '), compNote.trim()].filter(Boolean).join('\n');
+  // all picks in one backlog/ part file → point the agent at that file, so it doesn't read the whole backlog
+  const file = items.every(x => x.t.file === items[0].t.file) && items[0].t.file || p.file;
+  return [`${p.name} — ${file} — ${verb} ${what}`, rules.join(' '), compNote.trim()].filter(Boolean).join('\n');
 }
 
 // "+ Whole milestone M7 (5 open)" when the picks all sit in one milestone that has more open tickets
