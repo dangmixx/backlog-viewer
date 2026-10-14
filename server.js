@@ -7,6 +7,7 @@ const path = require('path');
 const PORT = process.env.PORT || 4321;
 const ROOT = path.resolve(__dirname, '..');           // parent folder — scanned for BACKLOG*.md
 const DATA = path.join(__dirname, 'projects.json');
+const LAYOUT = path.join(__dirname, 'layout.json');     // sidebar order, groups, pins (shape owned by the page)
 const PUBLIC = path.join(__dirname, 'public');
 const SKIP = new Set(['node_modules', '.git', '.godot', 'build', 'dist', '.import', 'backlog-viewer']);
 
@@ -387,6 +388,11 @@ http.createServer(async (req, res) => {
       send(res, 200, { ok: true });
       console.log('Stopped from the UI.');
       return setTimeout(() => process.exit(0), 200);
+    }
+    // GET/PUT /api/layout — sidebar layout, stored as-is
+    if (parts[0] === 'api' && parts[1] === 'layout') {
+      if (req.method === 'PUT') { fs.writeFileSync(LAYOUT, JSON.stringify(await readBody(req), null, 2), 'utf8'); return send(res, 200, { ok: true }); }
+      try { return send(res, 200, JSON.parse(fs.readFileSync(LAYOUT, 'utf8'))); } catch { return send(res, 200, {}); }
     }
     if (parts[0] === 'api') {
       const list = ensureProjects();

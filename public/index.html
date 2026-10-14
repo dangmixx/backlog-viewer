@@ -50,6 +50,38 @@ aside{border-right:1px solid var(--line);background:var(--panel);display:flex;fl
 .nav-item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav-item .pct{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .nav-item.active .pct{color:var(--accent)}
+/* ---- sidebar: drag to reorder, groups, pins ---- */
+.nav-label{display:flex;align-items:center;gap:6px}
+.nav-label .grow{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nl-btn{border:0;background:none;color:var(--faint);padding:3px 4px;border-radius:6px;cursor:pointer;display:inline-flex;margin:-4px 0}
+.nl-btn:hover{color:var(--accent);background:var(--accent-soft)}
+.nav-row{position:relative;border-radius:8px}
+.nav-row .more{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--muted);padding:4px 5px;border-radius:6px;cursor:pointer;display:none}
+.nav-row .more:hover{background:var(--line);color:var(--text)}
+.nav-row:hover .more{display:inline-flex}
+.nav-row:hover>.nav-item .pct,.nav-row.grp-head:hover>.pct,.nav-row.grp-head:hover>.gn{visibility:hidden}
+.nav-row.dragging{opacity:.4}
+.nav-row.drop-before::before,.nav-row.drop-after::after{content:"";position:absolute;left:6px;right:6px;height:2px;background:var(--accent);border-radius:2px;z-index:1}
+.nav-row.drop-before::before{top:-1px} .nav-row.drop-after::after{bottom:-1px}
+.drop-into{background:var(--accent-soft)!important;box-shadow:inset 0 0 0 1.5px var(--accent)}
+.grp-head{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;user-select:none;color:var(--muted);font-weight:600}
+.grp-head:hover{background:var(--sub)}
+.grp-head .chev{flex:none;color:var(--faint);transition:transform .15s}
+.grp.closed .grp-head .chev{transform:rotate(-90deg)}
+.grp-head .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grp-head.has-active .nm{color:var(--accent)}
+.grp-head .gn{font-size:11px;font-weight:500;color:var(--faint);background:var(--sub);border-radius:99px;padding:0 6px}
+.grp-head .pct{font-size:12px;font-weight:400;font-variant-numeric:tabular-nums}
+.grp-input{flex:1;min-width:0;border:1px solid var(--accent);background:var(--bg);border-radius:6px;padding:2px 6px;outline:none;font-weight:600}
+.grp-body{margin-left:16px;padding-left:4px;border-left:1px solid var(--line)}
+.grp.closed .grp-body{display:none}
+.drop-zone{border:1.5px dashed var(--line);border-radius:8px;padding:6px 10px;margin:2px 0;color:var(--faint);font-size:12px;text-align:center}
+/* nothing pinned: while dragging, a drop zone covers the Overview row (no layout shift under the cursor) */
+.ov-wrap{position:relative}
+.pin-over{display:none;position:absolute;inset:0;margin:0;background:var(--panel);align-items:center;justify-content:center;gap:6px}
+#nav.dragging .pin-over{display:flex}
+.nav-tail{min-height:36px}
+
 .aside-foot{padding:12px;border-top:1px solid var(--line);display:flex;gap:8px}
 
 .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);padding:7px 12px;border-radius:8px;cursor:pointer;font-weight:500;white-space:nowrap}
@@ -351,6 +383,10 @@ const I18N = {
     buildDoneToast: n => `Build ${n} xong ✓`, buildFailToast: 'Build lỗi — mở lại để xem log', min: 'ph',
     confirmShutdown: 'Tắt server Backlog Viewer?\nMở lại bằng shortcut hoặc start.cmd.',
     shutdownTitle: 'Đã tắt server', shutdownBody: 'Có thể đóng tab này. Mở lại bằng shortcut <b>Backlog Viewer</b>.',
+    pinned: 'Đã ghim', pin: 'Ghim lên đầu', unpin: 'Bỏ ghim', newGroup: 'Tạo nhóm', groupDefault: 'Nhóm mới',
+    rename: 'Đổi tên', delGroup: 'Xoá nhóm (giữ dự án)', groupRemoved: n => `Đã xoá nhóm “${n}”`,
+    moveTo: 'Chuyển vào nhóm', noGroup: 'Không nhóm', newGroupWith: '+ Nhóm mới',
+    dropPin: 'Thả vào đây để ghim', dropGroup: 'Kéo dự án vào đây', moreTitle: 'Tuỳ chọn (hoặc chuột phải) · kéo để sắp xếp',
   },
   en: {
     todo: 'To do', doing: 'In progress', done: 'Done', stCancel: 'Cancelled', nCancel: 'cancelled',
@@ -399,6 +435,10 @@ const I18N = {
     buildDoneToast: n => `Build ${n} finished ✓`, buildFailToast: 'Build failed — reopen to see the log', min: 'min',
     confirmShutdown: 'Stop the Backlog Viewer server?\nStart it again with the shortcut or start.cmd.',
     shutdownTitle: 'Server stopped', shutdownBody: 'You can close this tab. Start it again with the <b>Backlog Viewer</b> shortcut.',
+    pinned: 'Pinned', pin: 'Pin to top', unpin: 'Unpin', newGroup: 'New group', groupDefault: 'New group',
+    rename: 'Rename', delGroup: 'Delete group (keep projects)', groupRemoved: n => `Group “${n}” deleted`,
+    moveTo: 'Move to group', noGroup: 'No group', newGroupWith: '+ New group',
+    dropPin: 'Drop here to pin', dropGroup: 'Drag projects here', moreTitle: 'Options (or right-click) · drag to reorder',
   },
 };
 let lang = (() => { try { const l = localStorage.getItem('bv-lang'); if (l in I18N) return l; } catch {} return 'vi'; })();
@@ -463,6 +503,8 @@ async function refresh(silent) {
     const sig = j => JSON.stringify(j.map(p => [p.id, p.name, p.color, p.file, p.mtime, p.building, p.canBuild, p.version]));
     if (silent && sig(next) === sig(projects)) return;
     projects = next;
+    if (!layout) layout = await api('/api/layout').catch(() => ({}));
+    layout = normLayout(layout);
     if (state.view !== 'all' && !projects.some(p => p.id === state.view)) state.view = 'all';
     render();
   } catch (e) { if (!silent) $('#main').innerHTML = `<div class="wrap"><div class="err">${T('noServer')}: ${esc(e.message)}</div></div>`; }
@@ -470,18 +512,219 @@ async function refresh(silent) {
 
 function render() { renderNav(); state.view === 'all' ? renderAll() : renderProject(projects.find(p => p.id === state.view)); }
 
+// ---------- sidebar layout: order, groups, pins (saved in layout.json) ----------
+// pin / root: ordered keys "p:<project id>" or "g:<group id>"; groups[gid].items: ordered "p:" keys.
+// A project sits in exactly one list; groups sit in pin or root only (no nesting).
+let layout = null, dragKey = null, renaming = null, navDirty = false;
+const PIN = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 2l4 4-2.2.8-2.6 2.6-.4 3.1L3.5 7.2l3.1-.4 2.6-2.6L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6 10l-3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+const DOTS = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.5" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="12.5" cy="8" r="1.4"/></svg>';
+const FOLDER_ADD = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 7v4M6 9h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+const CHEV = '<svg class="chev" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function normLayout(l) {
+  l = { pin: [], root: [], groups: {}, ...l };
+  const seen = new Set();
+  const ok = k => {
+    if (typeof k !== 'string' || seen.has(k)) return false;
+    const id = k.slice(2);
+    if (k.startsWith('p:') ? !projects.some(p => p.id === id) : !(k.startsWith('g:') && l.groups[id])) return false;
+    seen.add(k); return true;
+  };
+  for (const g of Object.values(l.groups)) g.items = (g.items || []).filter(k => k.startsWith('p:') && ok(k));
+  l.pin = l.pin.filter(ok); l.root = l.root.filter(ok);
+  for (const gid in l.groups) if (!seen.has('g:' + gid)) l.root.push('g:' + gid);
+  for (const p of projects) if (!seen.has('p:' + p.id)) l.root.push('p:' + p.id);
+  return l;
+}
+function saveLayout() { api('/api/layout', { method: 'PUT', body: layout }).catch(e => toast(e.message)); }
+const contList = c => c === 'pin' ? layout.pin : c === 'root' ? layout.root : layout.groups[c.slice(2)]?.items;
+const groupOf = k => Object.keys(layout.groups).find(g => layout.groups[g].items.includes(k));
+// projects in sidebar order (pinned first, groups expanded)
+const navOrder = () => !layout ? projects : [...layout.pin, ...layout.root]
+  .flatMap(k => k.startsWith('g:') ? layout.groups[k.slice(2)].items : [k])
+  .map(k => projects.find(p => p.id === k.slice(2))).filter(Boolean);
+
+// move key into container `cont`, before/after `ref` (no ref → at the end)
+function moveKey(key, cont, ref, after) {
+  if (key.startsWith('g:') && cont.startsWith('g:')) return;
+  for (const l of [layout.pin, layout.root, ...Object.values(layout.groups).map(g => g.items)]) { const i = l.indexOf(key); if (i >= 0) l.splice(i, 1); }
+  const list = contList(cont), i = ref ? list.indexOf(ref) : -1;
+  list.splice(i < 0 ? list.length : i + (after ? 1 : 0), 0, key);
+}
+function layoutChanged() { saveLayout(); render(); }
+
+function newGroup(withKey) {
+  const gid = Date.now().toString(36);
+  layout.groups[gid] = { name: T('groupDefault'), open: true, items: [] };
+  const k = 'g:' + gid;
+  if (withKey) {                                // take the project's place (or sit right below its old group)
+    const pg = groupOf(withKey), at = pg ? 'g:' + pg : withKey;
+    moveKey(k, layout.pin.includes(at) ? 'pin' : 'root', at, !!pg);
+    moveKey(withKey, k);
+  } else layout.root.unshift(k);
+  renaming = gid; layoutChanged();
+}
+function deleteGroup(gid) {
+  const g = layout.groups[gid], k = 'g:' + gid;
+  for (const l of [layout.pin, layout.root]) { const i = l.indexOf(k); if (i >= 0) l.splice(i, 1, ...g.items); }
+  delete layout.groups[gid];
+  layoutChanged(); toast(T('groupRemoved', g.name));
+}
+function togglePin(k) {
+  if (layout.pin.includes(k)) moveKey(k, 'root', layout.root[0]);
+  else moveKey(k, 'pin');
+  layoutChanged();
+}
+function commitRename(gid, value, keep) {
+  if (renaming !== gid) return;
+  renaming = null;
+  const g = layout.groups[gid];
+  if (g && !keep) g.name = value.trim().slice(0, 60) || g.name;
+  saveLayout(); renderNav();
+}
+
+function navMenu(k, rect) {
+  const pinned = layout.pin.includes(k);
+  if (k.startsWith('g:')) {
+    const gid = k.slice(2);
+    return popMenu(rect, `<div class="sm-h">${esc(layout.groups[gid].name)}</div>
+      <button data-to="rename">${T('rename')}</button>
+      <button data-to="pin">${PIN}${pinned ? T('unpin') : T('pin')}</button>
+      <div class="sm-sep"></div><button data-to="del" class="sm-cancel">${T('delGroup')}</button>`, to => {
+      if (to === 'rename') { renaming = gid; renderNav(); }
+      if (to === 'pin') togglePin(k);
+      if (to === 'del') deleteGroup(gid);
+    }, true);
+  }
+  const p = projects.find(x => x.id === k.slice(2)), cur = groupOf(k);
+  popMenu(rect, `<div class="sm-h">${esc(p?.name)}</div>
+    <button data-to="pin">${PIN}${pinned ? T('unpin') : T('pin')}</button>
+    <div class="sm-sep"></div><div class="sm-h">${T('moveTo')}</div>
+    ${Object.entries(layout.groups).map(([gid, g]) => `<button data-to="g:${esc(gid)}" ${gid === cur ? 'disabled' : ''}>${esc(g.name)}${gid === cur ? '<span class="ck">✓</span>' : ''}</button>`).join('')}
+    <button data-to="nogroup" ${cur ? '' : 'disabled'}>${T('noGroup')}${cur || pinned ? '' : '<span class="ck">✓</span>'}</button>
+    <button data-to="new">${T('newGroupWith')}</button>`, to => {
+    if (to === 'pin') return togglePin(k);
+    if (to === 'new') return newGroup(k);
+    if (to === 'nogroup') moveKey(k, layout.pin.includes('g:' + cur) ? 'pin' : 'root', 'g:' + cur, true);   // right below its old group
+    else { moveKey(k, to); layout.groups[to.slice(2)].open = true; }
+    layoutChanged();
+  }, true);
+}
+
 function renderNav() {
+  // re-rendering would cancel a drag or eat the group name being typed
+  if (dragKey || (renaming && document.activeElement?.classList.contains('grp-input'))) { navDirty = true; return; }
+  navDirty = false;
+  const L = layout || { pin: [], root: projects.map(p => 'p:' + p.id), groups: {} };
   const all = counts(projects.flatMap(p => p.tickets));
-  $('#nav').innerHTML = `
+  const proj = id => {
+    const p = projects.find(x => x.id === id);
+    if (!p) return '';
+    const c = counts(p.tickets);
+    return `<div class="nav-row" draggable="true" data-key="p:${esc(id)}">
+      <button class="nav-item ${state.view === id ? 'active' : ''}" data-view="${esc(id)}">
+        <span class="dot" style="background:${colorOf(p)}"></span><span class="nm">${esc(p.name)}</span><span class="pct">${p.error ? '!' : c.pct + '%'}</span></button>
+      <button class="more" data-more="p:${esc(id)}" title="${T('moreTitle')}">${DOTS}</button></div>`;
+  };
+  const group = gid => {
+    const g = L.groups[gid], ps = g.items.map(k => projects.find(p => p.id === k.slice(2))).filter(Boolean);
+    const c = counts(ps.flatMap(p => p.tickets));
+    return `<div class="grp ${g.open === false ? 'closed' : ''}">
+      <div class="nav-row grp-head ${ps.some(p => p.id === state.view) ? 'has-active' : ''}" draggable="${renaming === gid ? 'false' : 'true'}" data-key="g:${esc(gid)}" data-gtoggle="${esc(gid)}">
+        ${CHEV}${renaming === gid ? `<input class="grp-input" value="${esc(g.name)}" maxlength="60" data-gid="${esc(gid)}">` : `<span class="nm">${esc(g.name)}</span>`}
+        <span class="gn">${ps.length}</span>${c.total ? `<span class="pct">${c.pct}%</span>` : ''}
+        <button class="more" data-more="g:${esc(gid)}" title="${T('moreTitle')}">${DOTS}</button></div>
+      <div class="grp-body" data-cont="g:${esc(gid)}">${g.items.map(k => proj(k.slice(2))).join('') || `<div class="drop-zone" data-zone="g:${esc(gid)}">${T('dropGroup')}</div>`}</div>
+    </div>`;
+  };
+  const item = k => k.startsWith('g:') ? group(k.slice(2)) : proj(k.slice(2));
+  $('#nav').innerHTML = `<div class="ov-wrap">
     <button class="nav-item ${state.view === 'all' ? 'active' : ''}" data-view="all">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="2" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="9" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="9" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/></svg>
       <span class="nm">${T('overview')}</span><span class="pct">${all.pct}%</span></button>
-    <div class="nav-label">${T('projectsN', projects.length)}</div>
-    ${projects.map((p, i) => { const c = counts(p.tickets); return `
-      <button class="nav-item ${state.view === p.id ? 'active' : ''}" data-view="${esc(p.id)}">
-        <span class="dot" style="background:${colorOf(p, i)}"></span><span class="nm">${esc(p.name)}</span><span class="pct">${p.error ? '!' : c.pct + '%'}</span></button>`; }).join('')}
-    ${projects.length ? '' : `<div class="nav-label" style="text-transform:none;letter-spacing:0">${T('noProjectsNav')}</div>`}`;
+    ${L.pin.length ? '' : `<div class="drop-zone pin-over" data-zone="pin" data-end>${PIN}${T('dropPin')}</div>`}</div>
+    ${L.pin.length ? `<div class="nav-label" data-zone="pin">${PIN}<span class="grow">${T('pinned')}</span></div>
+    <div data-cont="pin">${L.pin.map(item).join('')}</div>` : ''}
+    <div class="nav-label" data-zone="root"><span class="grow">${T('projectsN', L.root.reduce((n, k) => n + (k.startsWith('g:') ? L.groups[k.slice(2)].items.length : 1), 0))}</span>${layout ? `<button class="nl-btn" data-addgroup title="${T('newGroup')}">${FOLDER_ADD}</button>` : ''}</div>
+    <div data-cont="root">${L.root.map(item).join('')}</div>
+    ${projects.length ? '' : `<div class="nav-label" style="text-transform:none;letter-spacing:0">${T('noProjectsNav')}</div>`}
+    <div class="nav-tail" data-zone="root" data-end></div>`;
+  const inp = $('.grp-input');
+  if (inp) {
+    const gid = inp.dataset.gid;
+    inp.focus(); inp.select();
+    inp.onkeydown = e => {
+      e.stopPropagation();
+      if (e.key === 'Enter') commitRename(gid, inp.value);
+      if (e.key === 'Escape') commitRename(gid, '', true);
+    };
+    inp.onblur = () => commitRename(gid, inp.value);
+  }
 }
+
+// ---- drag & drop in the sidebar ----
+function dropTarget(e) {
+  const zone = e.target.closest('[data-zone]');
+  if (zone) {
+    const cont = zone.dataset.zone;
+    if (dragKey.startsWith('g:') && cont.startsWith('g:')) return null;
+    // a section label drops at the top of its list, an empty spot / the bottom at the end
+    return { cont, ref: zone.hasAttribute('data-end') ? null : contList(cont)[0] || null, el: zone, how: 'into' };
+  }
+  let row = e.target.closest('.nav-row[data-key]');
+  if (!row) return null;
+  // a group can't go inside a group: aim at the group around the row
+  if (dragKey.startsWith('g:') && row.closest('.grp-body')) row = row.closest('.grp').querySelector('.grp-head');
+  const key = row.dataset.key, r = row.getBoundingClientRect(), y = (e.clientY - r.top) / r.height;
+  if (key === dragKey) return null;
+  if (key.startsWith('g:') && !dragKey.startsWith('g:')) {
+    const g = layout.groups[key.slice(2)];
+    if (y > .25 && (y < .75 || (g.open !== false && g.items.length)))   // middle, or the bottom edge of an open group → into it
+      return { cont: key, ref: y < .75 ? null : g.items[0], el: row, how: 'into' };
+  }
+  return { cont: row.parentElement.closest('[data-cont]').dataset.cont, ref: key, after: y >= .5, el: row, how: y >= .5 ? 'after' : 'before' };
+}
+let dropEl = null;
+const clearDrop = () => { dropEl?.classList.remove('drop-before', 'drop-after', 'drop-into'); dropEl = null; };
+const nav = $('#nav');
+nav.addEventListener('dragstart', e => {
+  const row = e.target.closest?.('.nav-row[data-key]');
+  if (!row || !layout) return e.preventDefault();
+  dragKey = row.dataset.key;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragKey);
+  closeStatusMenu();
+  setTimeout(() => { row.classList.add('dragging'); nav.classList.add('dragging'); });
+});
+nav.addEventListener('dragover', e => {
+  if (!dragKey) return;
+  const t = dropTarget(e);
+  if (t?.el !== dropEl || (t && !t.el.classList.contains('drop-' + t.how))) { clearDrop(); if (t) { dropEl = t.el; dropEl.classList.add('drop-' + t.how); } }
+  if (t) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+});
+nav.addEventListener('dragleave', e => { if (!nav.contains(e.relatedTarget)) clearDrop(); });
+nav.addEventListener('drop', e => {
+  if (!dragKey) return;
+  e.preventDefault();
+  const t = dropTarget(e), key = dragKey;
+  clearDrop();
+  if (!t) return;
+  moveKey(key, t.cont, t.ref, t.after);
+  if (t.cont.startsWith('g:')) layout.groups[t.cont.slice(2)].open = true;
+  dragKey = null; layoutChanged();
+});
+nav.addEventListener('dragend', () => {
+  dragKey = null; clearDrop();
+  nav.classList.remove('dragging');
+  nav.querySelector('.dragging')?.classList.remove('dragging');
+  if (navDirty) renderNav();
+});
+nav.addEventListener('contextmenu', e => {
+  const row = e.target.closest('.nav-row[data-key]');
+  if (!row || !layout || e.target.closest('input')) return;
+  e.preventDefault();
+  navMenu(row.dataset.key, { left: e.clientX, right: e.clientX, top: e.clientY, bottom: e.clientY });
+});
 
 function go(view) { state.view = view; state.section = 'all'; persist(); render(); $('#main').scrollTop = 0; $('#aside').classList.remove('open'); }
 
@@ -506,7 +749,7 @@ function renderAll() {
   $('#main').innerHTML = `<div class="wrap">
     <div class="head">${menuBtn}<div class="grow"><h1>${T('overview')}</h1><div class="sub">${T('overviewSub', projects.length, all.length)}</div></div>${refreshBtn()}</div>
     ${statCards(c)}
-    ${projects.length ? `<div class="grid">${projects.map((p, i) => projectCard(p, i)).join('')}</div>` : `<div class="empty">${T('noProjects')}<br><br><button class="btn primary" data-act="add">${T('addProject')}</button></div>`}
+    ${projects.length ? `<div class="grid">${navOrder().map(projectCard).join('')}</div>` : `<div class="empty">${T('noProjects')}<br><br><button class="btn primary" data-act="add">${T('addProject')}</button></div>`}
     ${doing.length ? `<h2 class="h">${T('doingN', doing.length)}</h2><div class="section"><div class="rows">${doing.map(t => row(t, t.p)).join('')}</div></div>` : ''}
     ${p0.length ? `<h2 class="h">${T('p0TodoN', p0.length)}</h2><div class="section"><div class="rows">${p0.map(t => row(t, t.p)).join('')}</div></div>` : ''}
   </div>`;
@@ -514,11 +757,11 @@ function renderAll() {
 
 const verTag = p => p.version ? `<span class="ver">v${esc(p.version.replace(/^v/i, ''))}</span>` : '';
 
-function projectCard(p, i) {
+function projectCard(p) {
   const c = counts(p.tickets);
   const doing = p.tickets.filter(t => t.status === 'doing').slice(0, 3);
   return `<div class="pcard" data-view="${esc(p.id)}">
-    <div class="top"><span class="dot" style="background:${colorOf(p, i)}"></span><h3>${esc(p.name)}</h3>${verTag(p)}<span class="big">${c.pct}%</span></div>
+    <div class="top"><span class="dot" style="background:${colorOf(p)}"></span><h3>${esc(p.name)}</h3>${verTag(p)}<span class="big">${c.pct}%</span></div>
     <div class="desc">${p.error ? `<span style="color:var(--p0)">${esc(p.error)}</span>` : md(p.intro.split('\n')[0] || p.file)}</div>
     ${bar(c)}
     <div class="nums"><span><b>${c.todo}</b> ${T('nTodo')}</span><span><b>${c.doing}</b> ${T('nDoing')}</span><span><b>${c.done}</b> ${T('nDone')}</span>${c.cancel ? `<span><b>${c.cancel}</b> ${T('nCancel')}</span>` : ''}</div>
@@ -650,29 +893,35 @@ const DELAY = 5000;
 const pending = new Map();            // "pid|tid" -> {pid, tid, line, prev, next, at, timer}
 const pbar = pd => `<i class="pbar" style="animation-duration:${DELAY}ms;animation-delay:-${Math.min(DELAY, DELAY - (pd.at - Date.now()))}ms"></i>`;
 
-function openStatusMenu(btn) {
+// popup menu under `r` (a rect); its [data-to] buttons call onPick(value). alignLeft: grow rightwards from r.left
+function popMenu(r, html, onPick, alignLeft) {
   closeStatusMenu();
-  const { pid, tid, line, cur } = btn.dataset, key = pid + '|' + tid, pd = pending.get(key);
-  const shown = pd ? pd.next : cur;
   const m = document.createElement('div');
   m.id = 'stMenu';
-  m.innerHTML = `<div class="sm-h mono">${esc(tid)}</div>` +
-    ['todo', 'doing', 'done', 'cancel'].map(s => `<button data-to="${s}" ${s === shown ? 'disabled' : ''}>
-      <span class="st ${s}" style="padding:0;background:none"></span>${stl(s)}${s === shown ? '<span class="ck">✓</span>' : ''}</button>`).join('') +
-    (pd ? `<div class="sm-sep"></div><button data-to="keep" class="sm-cancel">${T('cancelChange', stl(pd.prev))}</button>` : '');
+  m.innerHTML = html;
   document.body.appendChild(m);
-  const r = btn.getBoundingClientRect(), mw = m.offsetWidth, mh = m.offsetHeight;
-  m.style.left = Math.max(8, Math.min(r.right - mw, innerWidth - mw - 8)) + 'px';
-  m.style.top = (r.bottom + 6 + mh > innerHeight ? r.top - mh - 6 : r.bottom + 6) + 'px';
+  const mw = m.offsetWidth, mh = m.offsetHeight;
+  m.style.left = Math.max(8, Math.min(alignLeft ? r.left : r.right - mw, innerWidth - mw - 8)) + 'px';
+  m.style.top = Math.max(8, r.bottom + 6 + mh > innerHeight ? r.top - mh - 6 : r.bottom + 6) + 'px';
   m.onclick = e => {
     const b = e.target.closest('[data-to]');
     if (!b || b.disabled) return;
     closeStatusMenu();
-    if (b.dataset.to === 'keep') return cancelPending(key);
-    if (pd && b.dataset.to === pd.prev) return cancelPending(key);   // back to where it was
-    queueStatus({ pid, tid, line: +line, prev: pd ? pd.prev : cur, next: b.dataset.to });
+    onPick(b.dataset.to);
   };
   m.querySelector('button:not([disabled])')?.focus();
+}
+function openStatusMenu(btn) {
+  const { pid, tid, line, cur } = btn.dataset, key = pid + '|' + tid, pd = pending.get(key);
+  const shown = pd ? pd.next : cur;
+  popMenu(btn.getBoundingClientRect(), `<div class="sm-h mono">${esc(tid)}</div>` +
+    ['todo', 'doing', 'done', 'cancel'].map(s => `<button data-to="${s}" ${s === shown ? 'disabled' : ''}>
+      <span class="st ${s}" style="padding:0;background:none"></span>${stl(s)}${s === shown ? '<span class="ck">✓</span>' : ''}</button>`).join('') +
+    (pd ? `<div class="sm-sep"></div><button data-to="keep" class="sm-cancel">${T('cancelChange', stl(pd.prev))}</button>` : ''), to => {
+    if (to === 'keep') return cancelPending(key);
+    if (pd && to === pd.prev) return cancelPending(key);   // back to where it was
+    queueStatus({ pid, tid, line: +line, prev: pd ? pd.prev : cur, next: to });
+  });
 }
 function closeStatusMenu() { $('#stMenu')?.remove(); }
 
@@ -862,8 +1111,15 @@ document.addEventListener('click', async e => {
   if (e.target.closest('#stMenu')) return;
   if ($('#stMenu') && !e.target.closest('.st[data-tid]')) { closeStatusMenu(); if (!e.target.closest('[data-pick]')) return; }
   if (e.target.closest('#drawer,#dlg,#toast')) return;
-  const el = e.target.closest('[data-view],[data-status],[data-prio],[data-mode],[data-toggle],[data-act],.st[data-tid],[data-pick],[data-ms]');
+  const el = e.target.closest('[data-view],[data-status],[data-prio],[data-mode],[data-toggle],[data-act],.st[data-tid],[data-pick],[data-ms],[data-more],[data-gtoggle],[data-addgroup]');
   if (!el) return;
+  if (el.dataset.more) return navMenu(el.dataset.more, el.getBoundingClientRect());
+  if (el.dataset.gtoggle) {
+    if (e.target.closest('input')) return;
+    const g = layout.groups[el.dataset.gtoggle];
+    g.open = g.open === false; el.parentElement.classList.toggle('closed', !g.open); return saveLayout();
+  }
+  if (el.hasAttribute('data-addgroup')) return newGroup();
   if (el.matches('.st[data-tid]')) { e.stopPropagation(); return openStatusMenu(el); }
   if (el.dataset.pick) {
     if (String(getSelection())) return;   // user is selecting text

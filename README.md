@@ -58,6 +58,7 @@ Changing a status in the app rewrites only the `[ ]` / `[~]` / `[x]` cell of tha
 - Release build button: runs the project's build command (or `tools/export_release.ps1`), bumps `version/code` and `version/name` in a Godot `export_presets.cfg` first and restores them if the build fails
 - Version tag next to the project name: typed in the edit dialog, else a `**Version:** 1.2.0` line under the BACKLOG.md title, else `version/name` in a Godot `export_presets.cfg`
 - Add / edit / remove projects, light and dark theme
+- Sidebar: drag projects to reorder, group them (folder button next to "Projects"), pin projects or groups to the top; right-click or `⋯` for the same actions. Saved in `layout.json` (not committed); the overview follows the same order
 - Vietnamese and English UI (VI / EN button, remembered per browser); the AI prompt and server messages follow it
 
 The server listens on 127.0.0.1 only. Requests that change anything must carry the `X-BV: 1` header, which the page sends.
