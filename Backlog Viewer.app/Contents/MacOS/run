@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Backlog Viewer launcher — chay khi double-click "Backlog Viewer.app".
+# .app nam o goc repo, nen repo = thu muc chua .app (len 3 cap tu file nay).
+cd "$(dirname "$0")/../../.." || exit 1
+URL=http://localhost:4321
+
+# Tim node: nvm, Homebrew, cac vi tri cai dat thong dung (launchd khong co PATH day du).
+if ! command -v node >/dev/null 2>&1; then
+  [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1
+fi
+if ! command -v node >/dev/null 2>&1; then
+  for p in /opt/homebrew/bin /usr/local/bin "$HOME/.nvm/versions/node"/*/bin; do
+    [ -x "$p/node" ] && PATH="$p:$PATH" && break
+  done
+fi
+if ! command -v node >/dev/null 2>&1; then
+  osascript -e 'display alert "Backlog Viewer" message "Khong tim thay Node.js. Cai Node roi mo lai."' >/dev/null 2>&1
+  exit 1
+fi
+
+if ! curl -s -o /dev/null "$URL/api/projects"; then
+  nohup node server.js --auto-exit >/dev/null 2>&1 &
+  for i in $(seq 10); do curl -s -o /dev/null "$URL/api/projects" && break; sleep 0.5; done
+fi
+open "$URL"

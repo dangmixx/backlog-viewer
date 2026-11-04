@@ -7,11 +7,12 @@ A small local web app for tracking the tickets in the `BACKLOG.md` files of all 
 ```
 node server.js            # http://localhost:4321
 start.cmd / stop.cmd      # Windows: start hidden + open the browser / stop the server
-start.command             # macOS: double-click in Finder — same behaviour (quits when every tab is closed)
+Backlog Viewer.app        # macOS: double-click — like the .exe on Windows, no Terminal window
+start.command             # macOS: same behaviour from a script (opens Terminal briefly)
 stop.command              # macOS: stop the server
 ```
 
-On macOS the first double-click may be blocked by Gatekeeper; right-click → **Open** once (or `xattr -d com.apple.quarantine start.command stop.command`).
+`Backlog Viewer.app` is a tiny launcher (it runs `node server.js`, opens the browser, and quits when every tab is closed). On the first open macOS Gatekeeper may block it — right-click → **Open** once, or run `xattr -dr com.apple.quarantine "Backlog Viewer.app"`. The same applies to `start.command` / `stop.command`.
 
 On first run it scans the parent folder for `BACKLOG*.md` files and stores the project list in `projects.json` (not committed).
 
