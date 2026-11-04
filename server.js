@@ -274,6 +274,36 @@ function stopBuild(p) {
 }
 const anyBuildRunning = () => [...builds.values()].some(b => b.running);
 
+// ---------- git graph ----------
+// Recent commits across all branches of a project's folder, as structured data the
+// page lays out into a graph. No dependencies: shells out to `git log`. Fields are
+// separated by \x1f (unit) and records by \x1e (record), so commit messages are safe.
+function gitGraph(p, limit) {
+  const US = '\x1f', RS = '\x1e';
+  const fmt = ['%H', '%P', '%an', '%ad', '%D', '%s'].join(US) + RS;
+  const args = ['-C', projDir(p), 'log', '--all', '--date-order',
+    '-n', String(limit), '--pretty=format:' + fmt, '--date=format:%Y-%m-%d %H:%M'];
+  return new Promise(ok => {
+    execFile('git', args, { windowsHide: true, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (err) {
+        const notGit = err.code === 'ENOENT' ? 'git not found on PATH' : (String(stderr || err.message).trim() || 'git failed');
+        return ok({ repo: false, error: notGit });
+      }
+      const commits = stdout.split(RS).map(s => s.replace(/^\r?\n/, '')).filter(s => s.trim()).map(rec => {
+        const f = rec.split(US);
+        return {
+          h: (f[0] || '').slice(0, 8), H: f[0] || '',
+          parents: f[1] ? f[1].split(' ').filter(Boolean) : [],
+          an: f[2] || '', ad: f[3] || '',
+          refs: f[4] ? f[4].split(',').map(x => x.trim()).filter(Boolean) : [],
+          s: f[5] || '',
+        };
+      });
+      ok({ repo: true, commits });
+    });
+  });
+}
+
 // ---------- native file picker (Windows) ----------
 // The page can't learn a file's full path from <input type="file">, so the server shows the
 // OS dialog. A hidden TopMost form owns it so it opens in front of the browser.
@@ -403,6 +433,13 @@ http.createServer(async (req, res) => {
         if (req.method === 'POST') { const b = await readBody(req); startBuild(p, b.bump || null, lang); }
         if (req.method === 'DELETE') stopBuild(p);
         return send(res, 200, buildInfo(p));
+      }
+      // GET /api/projects/:id/git-graph?limit=N — commit graph of the project's folder
+      if (parts[1] === 'projects' && parts[3] === 'git-graph' && req.method === 'GET') {
+        const p = list.find(p => p.id === parts[2]);
+        if (!p) return send(res, 404, { error: msg(lang, 'noProject') });
+        const limit = Math.min(2000, Math.max(1, parseInt(url.searchParams.get('limit'), 10) || 250));
+        return send(res, 200, await gitGraph(p, limit));
       }
       // GET /api/projects
       if (parts[1] === 'projects' && !parts[2] && req.method === 'GET')

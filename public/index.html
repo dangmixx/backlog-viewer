@@ -172,6 +172,27 @@ select.sel{border:1px solid var(--line);background:var(--panel);border-radius:8p
 .card .top .id{white-space:nowrap}
 .more{text-align:center;color:var(--muted);font-size:12px;padding:6px}
 
+/* git graph view */
+.seg.grow-sp{margin-left:auto}
+.gg-head{color:var(--muted);font-size:12px;margin:2px 0 8px;font-variant-numeric:tabular-nums}
+.git-graph{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.gg-svg{position:absolute;left:0;top:0;pointer-events:none}
+.gg-rows{margin-left:var(--gw)}
+.gg-row{height:var(--gg-row);display:flex;flex-direction:column;justify-content:center;box-sizing:border-box;padding:0 14px 0 4px;border-bottom:1px solid var(--line)}
+.gg-row:last-child{border-bottom:0}
+.gg-row:hover{background:var(--sub)}
+.gg-msg{display:flex;align-items:center;gap:6px;min-width:0}
+.gg-subj{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:anywhere}
+.gg-meta{font-size:12px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gg-hash{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace}
+.gg-ref{font-size:11px;font-weight:600;line-height:1.3;padding:1px 7px;border-radius:999px;border:1px solid var(--line);white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;flex:none}
+.gg-ref.head{color:#fff;background:var(--accent);border-color:var(--accent)}
+.gg-ref.branch{color:var(--accent);border-color:var(--accent)}
+.gg-ref.remote{color:var(--muted);border-style:dashed}
+.gg-ref.tag{color:#b45309;border-color:#f59e0b}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .gg-ref.tag{color:#fbbf24}}
+:root[data-theme="dark"] .gg-ref.tag{color:#fbbf24}
+
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
 .pcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px;cursor:pointer;box-shadow:var(--shadow);transition:border-color .15s,transform .15s}
 .pcard:hover{border-color:var(--accent);transform:translateY(-1px)}
@@ -346,7 +367,9 @@ const I18N = {
     nTodo: 'chưa làm', nDoing: 'đang làm', nDone: 'xong',
     buildTitle: 'Build bản release mới', building: 'Đang build…', edit: 'Sửa', checkPath: 'kiểm tra lại đường dẫn file.',
     searchPh: 'Tìm ID, nội dung…  ( / )', fOpen: 'Còn lại', fAll: 'Tất cả', anyPrio: 'Mọi ưu tiên', anyMs: 'Mọi milestone',
-    list: 'Danh sách', board: 'Bảng', noMatch: 'Không có ticket nào khớp bộ lọc.', general: '(Chung)',
+    list: 'Danh sách', board: 'Bảng', graph: 'Git graph', noMatch: 'Không có ticket nào khớp bộ lọc.', general: '(Chung)',
+    gitLoading: 'Đang đọc lịch sử git…', gitNone: 'Thư mục này không phải kho git (hoặc chưa có commit).',
+    gitError: e => `Không đọc được lịch sử git: ${e}`, gitCommits: n => `${n} commit gần nhất`,
     pickTitle: 'Bấm để soạn lệnh cho AI · Ctrl+bấm để chọn thêm', estimate: 'Ước lượng', needsYou: 'Cần bạn',
     unscheduled: 'Chưa lên lịch', willChange: s => `Sẽ chuyển sang “${s}” — bấm để huỷ hoặc đổi`, clickToChange: 'Bấm để đổi trạng thái',
     moreTickets: n => `+${n} ticket nữa`,
@@ -398,7 +421,9 @@ const I18N = {
     nTodo: 'to do', nDoing: 'in progress', nDone: 'done',
     buildTitle: 'Build a new release', building: 'Building…', edit: 'Edit', checkPath: 'check the file path.',
     searchPh: 'Search ID, text…  ( / )', fOpen: 'Open', fAll: 'All', anyPrio: 'Any priority', anyMs: 'All milestones',
-    list: 'List', board: 'Board', noMatch: 'No tickets match the filters.', general: '(General)',
+    list: 'List', board: 'Board', graph: 'Git graph', noMatch: 'No tickets match the filters.', general: '(General)',
+    gitLoading: 'Loading git history…', gitNone: 'This folder is not a git repository (or has no commits yet).',
+    gitError: e => `Cannot read git history: ${e}`, gitCommits: n => `${n} most recent commit${n === 1 ? '' : 's'}`,
     pickTitle: 'Click to write an AI prompt · Ctrl+click to add more', estimate: 'Estimate', needsYou: 'Needs you',
     unscheduled: 'Unscheduled', willChange: s => `Will change to “${s}” — click to cancel or change`, clickToChange: 'Click to change status',
     moreTickets: n => `+${n} more tickets`,
@@ -492,6 +517,7 @@ async function manualRefresh(btn) {
   if (refreshing) return;
   refreshing = true; btn.classList.add('spinning');
   const t0 = Date.now();
+  gitCache = {};                                  // re-read git history too
   await refresh();
   await new Promise(r => setTimeout(r, Math.max(0, 500 - (Date.now() - t0))));   // let the spin be seen
   refreshing = false; $('#refreshBtn')?.classList.remove('spinning');
@@ -802,13 +828,13 @@ function renderProject(p) {
     ${p.error ? `<div class="err" style="margin-top:20px">${esc(p.error)} — ${T('checkPath')}</div>` : `
     ${statCards(c)}
     <div class="toolbar">
-      <div class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><input id="q" placeholder="${T('searchPh')}" value="${esc(state.q)}"></div>
-      ${state.mode === 'board' ? '' : `<div class="seg">${segBtn('open', T('fOpen'))}${segBtn('doing', T('doing'))}${segBtn('done', T('done'))}${c.cancel ? segBtn('cancel', T('stCancel')) : ''}${segBtn('all', T('fAll'))}</div>`}
-      ${prios.length ? `<div class="seg"><button class="${state.prio === 'all' ? 'on' : ''}" data-prio="all">${T('anyPrio')}</button>${prios.map(x => `<button class="${state.prio === x ? 'on' : ''}" data-prio="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''}
-      <select class="sel" id="secSel"><option value="all">${T('anyMs')}</option>${secs.map(s => `<option ${state.section === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
-      <div class="seg"><button class="${state.mode === 'list' ? 'on' : ''}" data-mode="list">${T('list')}</button><button class="${state.mode === 'board' ? 'on' : ''}" data-mode="board">${T('board')}</button></div>
+      ${state.mode === 'graph' ? '' : `<div class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><input id="q" placeholder="${T('searchPh')}" value="${esc(state.q)}"></div>`}
+      ${state.mode === 'board' || state.mode === 'graph' ? '' : `<div class="seg">${segBtn('open', T('fOpen'))}${segBtn('doing', T('doing'))}${segBtn('done', T('done'))}${c.cancel ? segBtn('cancel', T('stCancel')) : ''}${segBtn('all', T('fAll'))}</div>`}
+      ${prios.length && state.mode !== 'graph' ? `<div class="seg"><button class="${state.prio === 'all' ? 'on' : ''}" data-prio="all">${T('anyPrio')}</button>${prios.map(x => `<button class="${state.prio === x ? 'on' : ''}" data-prio="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''}
+      ${state.mode === 'graph' ? '' : `<select class="sel" id="secSel"><option value="all">${T('anyMs')}</option>${secs.map(s => `<option ${state.section === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>`}
+      <div class="seg grow-sp"><button class="${state.mode === 'list' ? 'on' : ''}" data-mode="list">${T('list')}</button><button class="${state.mode === 'board' ? 'on' : ''}" data-mode="board">${T('board')}</button><button class="${state.mode === 'graph' ? 'on' : ''}" data-mode="graph">${T('graph')}</button></div>
     </div>
-    ${shown.length ? (state.mode === 'board' ? board(shown) : listView(p, shown)) : `<div class="empty">${T('noMatch')}</div>`}`}
+    ${state.mode === 'graph' ? graphView(p) : (shown.length ? (state.mode === 'board' ? board(shown) : listView(p, shown)) : `<div class="empty">${T('noMatch')}</div>`)}`}
   </div>`;
 }
 
@@ -869,6 +895,86 @@ function board(shown) {
         <div class="t">${md(t.title)}</div><div class="foot"><span class="sec">${md(t.section)}</span>${statusBtn(t, p)}</div></div>`).join('')}
       ${ts.length > lim ? `<div class="more">${T('moreTickets', ts.length - lim)}</div>` : ''}</div>`;
   }).join('')}</div>`;
+}
+
+// ---------- git graph ----------
+// Lazy per-project cache of the commit list from /api/.../git-graph. Cleared on a
+// manual refresh; a silent/background refresh keeps it so the graph does not flash.
+let gitCache = {};
+async function loadGraph(pid) {
+  try { gitCache[pid] = await api(`/api/projects/${pid}/git-graph`); }
+  catch (e) { gitCache[pid] = { repo: false, error: e.message }; }
+  if (state.view === pid && state.mode === 'graph') render();
+}
+function graphView(p) {
+  const g = gitCache[p.id];
+  if (!g) { loadGraph(p.id); return `<div class="empty">${T('gitLoading')}</div>`; }
+  if (!g.repo) return `<div class="empty">${g.error ? T('gitError', g.error) : T('gitNone')}</div>`;
+  if (!g.commits || !g.commits.length) return `<div class="empty">${T('gitNone')}</div>`;
+  return `<div class="gg-head">${T('gitCommits', g.commits.length)}</div>${renderGitGraph(g.commits)}`;
+}
+
+// Assign each commit a column (lane) and the column of each in-window parent, so the
+// page can draw the usual git-graph lanes. Commits come newest-first (--date-order).
+function layoutGraph(commits) {
+  const idx = new Map(commits.map((c, i) => [c.H, i]));
+  const lanes = [];                                  // lane i reserved for this hash, or null
+  const free = () => { const i = lanes.indexOf(null); return i < 0 ? lanes.length : i; };
+  let maxCol = 0;
+  commits.forEach(c => {
+    let col = lanes.indexOf(c.H);
+    if (col < 0) col = free();                        // a branch tip nothing was waiting for
+    c.col = col;
+    lanes[col] = null;                                // free this commit's lane; parent 0 may retake it
+    c.parentCols = [];
+    c.parents.forEach((ph, k) => {
+      if (!idx.has(ph)) return;                       // parent is older than the fetched window
+      let pc = lanes.indexOf(ph);
+      if (pc < 0) { pc = (k === 0 && lanes[col] == null) ? col : free(); lanes[pc] = ph; }
+      c.parentCols.push({ col: pc, row: idx.get(ph) });
+      maxCol = Math.max(maxCol, pc);
+    });
+    maxCol = Math.max(maxCol, col);
+  });
+  return maxCol + 1;
+}
+
+function refChip(ref) {
+  let cls = 'branch', label = ref;
+  if (/^HEAD\b/.test(ref)) { cls = 'head'; label = ref.replace('HEAD ->', 'HEAD →'); }
+  else if (/^tag:/.test(ref)) { cls = 'tag'; label = ref.replace(/^tag:\s*/, ''); }
+  else if (ref.includes('/')) cls = 'remote';
+  return `<span class="gg-ref ${cls}" title="${esc(ref)}">${esc(label)}</span>`;
+}
+
+function renderGitGraph(commits) {
+  const ROW = 52, COLW = 18, GPAD = 11, R = 4.5;
+  const cols = layoutGraph(commits);
+  const W = GPAD * 2 + Math.max(1, cols) * COLW;
+  const H = commits.length * ROW;
+  const x = col => GPAD + col * COLW + COLW / 2;
+  const y = r => r * ROW + ROW / 2;
+  const gcol = i => COLORS[i % COLORS.length];
+  let edges = '', nodes = '';
+  commits.forEach((c, r) => {
+    const x1 = x(c.col), y1 = y(r);
+    c.parentCols.forEach(pp => {
+      const x2 = x(pp.col), y2 = y(pp.row), ym = y1 + ROW;
+      const d = `M${x1} ${y1} C${x1} ${y1 + ROW / 2} ${x2} ${ym - ROW / 2} ${x2} ${ym} L${x2} ${y2}`;
+      edges += `<path d="${d}" fill="none" stroke="${gcol(pp.col)}" stroke-width="2"/>`;
+    });
+  });
+  commits.forEach((c, r) => {
+    nodes += `<circle cx="${x(c.col)}" cy="${y(r)}" r="${R}" fill="${gcol(c.col)}" stroke="var(--panel)" stroke-width="2"/>`;
+  });
+  const rows = commits.map(c => `<div class="gg-row">
+      <div class="gg-msg">${c.refs.map(refChip).join('')}<span class="gg-subj">${md(c.s)}</span></div>
+      <div class="gg-meta"><span class="gg-hash">${esc(c.h)}</span> · ${esc(c.an)} · ${esc(c.ad)}</div>
+    </div>`).join('');
+  return `<div class="git-graph" style="--gw:${W}px;--gg-row:${ROW}px">
+    <svg class="gg-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${edges}${nodes}</svg>
+    <div class="gg-rows">${rows}</div>
+  </div>`;
 }
 
 // ---------- status change + undo ----------
