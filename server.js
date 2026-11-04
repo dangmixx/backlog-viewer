@@ -278,11 +278,13 @@ const anyBuildRunning = () => [...builds.values()].some(b => b.running);
 // Recent commits across all branches of a project's folder, as structured data the
 // page lays out into a graph. No dependencies: shells out to `git log`. Fields are
 // separated by \x1f (unit) and records by \x1e (record), so commit messages are safe.
-function gitGraph(p, limit) {
+// Paged: `skip` commits are skipped and `limit` returned; one extra is requested so the
+// reply can say whether older commits remain (`hasMore`) without a second git call.
+function gitGraph(p, limit, skip = 0) {
   const US = '\x1f', RS = '\x1e';
   const fmt = ['%H', '%P', '%an', '%ad', '%D', '%s'].join(US) + RS;
   const args = ['-C', projDir(p), 'log', '--all', '--date-order',
-    '-n', String(limit), '--pretty=format:' + fmt, '--date=format:%Y-%m-%d %H:%M'];
+    '--skip=' + skip, '-n', String(limit + 1), '--pretty=format:' + fmt, '--date=format:%Y-%m-%d %H:%M'];
   return new Promise(ok => {
     execFile('git', args, { windowsHide: true, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
@@ -299,7 +301,7 @@ function gitGraph(p, limit) {
           s: f[5] || '',
         };
       });
-      ok({ repo: true, commits });
+      ok({ repo: true, commits: commits.slice(0, limit), hasMore: commits.length > limit });
     });
   });
 }
@@ -434,12 +436,13 @@ http.createServer(async (req, res) => {
         if (req.method === 'DELETE') stopBuild(p);
         return send(res, 200, buildInfo(p));
       }
-      // GET /api/projects/:id/git-graph?limit=N — commit graph of the project's folder
+      // GET /api/projects/:id/git-graph?limit=N&skip=M — one page of the commit graph of the project's folder
       if (parts[1] === 'projects' && parts[3] === 'git-graph' && req.method === 'GET') {
         const p = list.find(p => p.id === parts[2]);
         if (!p) return send(res, 404, { error: msg(lang, 'noProject') });
-        const limit = Math.min(2000, Math.max(1, parseInt(url.searchParams.get('limit'), 10) || 250));
-        return send(res, 200, await gitGraph(p, limit));
+        const limit = Math.min(500, Math.max(1, parseInt(url.searchParams.get('limit'), 10) || 50));
+        const skip = Math.max(0, parseInt(url.searchParams.get('skip'), 10) || 0);
+        return send(res, 200, await gitGraph(p, limit, skip));
       }
       // GET /api/projects
       if (parts[1] === 'projects' && !parts[2] && req.method === 'GET')

@@ -180,6 +180,7 @@ select.sel{border:1px solid var(--line);background:var(--panel);border-radius:8p
 .gg-rows{margin-left:var(--gw)}
 .gg-row{height:var(--gg-row);display:flex;flex-direction:column;justify-content:center;box-sizing:border-box;padding:0 14px 0 4px;border-bottom:1px solid var(--line)}
 .gg-row:last-child{border-bottom:0}
+.gg-more{display:flex;justify-content:center;padding:16px 0 28px;color:var(--faint);font-size:12px}
 .gg-row:hover{background:var(--sub)}
 .gg-msg{display:flex;align-items:center;gap:6px;min-width:0}
 .gg-subj{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:anywhere}
@@ -369,7 +370,8 @@ const I18N = {
     searchPh: 'Tìm ID, nội dung…  ( / )', fOpen: 'Còn lại', fAll: 'Tất cả', anyPrio: 'Mọi ưu tiên', anyMs: 'Mọi milestone',
     list: 'Danh sách', board: 'Bảng', graph: 'Git graph', noMatch: 'Không có ticket nào khớp bộ lọc.', general: '(Chung)',
     gitLoading: 'Đang đọc lịch sử git…', gitNone: 'Thư mục này không phải kho git (hoặc chưa có commit).',
-    gitError: e => `Không đọc được lịch sử git: ${e}`, gitCommits: n => `${n} commit gần nhất`,
+    gitError: e => `Không đọc được lịch sử git: ${e}`, gitCommits: (n, more) => `${n}${more ? '+' : ''} commit gần nhất`,
+    gitMore: 'Tải thêm commit', gitLoadingMore: 'Đang tải…', gitEnd: 'Đã hiện toàn bộ lịch sử',
     pickTitle: 'Bấm để soạn lệnh cho AI · Ctrl+bấm để chọn thêm', estimate: 'Ước lượng', needsYou: 'Cần bạn',
     unscheduled: 'Chưa lên lịch', willChange: s => `Sẽ chuyển sang “${s}” — bấm để huỷ hoặc đổi`, clickToChange: 'Bấm để đổi trạng thái',
     moreTickets: n => `+${n} ticket nữa`,
@@ -423,7 +425,8 @@ const I18N = {
     searchPh: 'Search ID, text…  ( / )', fOpen: 'Open', fAll: 'All', anyPrio: 'Any priority', anyMs: 'All milestones',
     list: 'List', board: 'Board', graph: 'Git graph', noMatch: 'No tickets match the filters.', general: '(General)',
     gitLoading: 'Loading git history…', gitNone: 'This folder is not a git repository (or has no commits yet).',
-    gitError: e => `Cannot read git history: ${e}`, gitCommits: n => `${n} most recent commit${n === 1 ? '' : 's'}`,
+    gitError: e => `Cannot read git history: ${e}`, gitCommits: (n, more) => `${n}${more ? '+' : ''} most recent commit${n === 1 && !more ? '' : 's'}`,
+    gitMore: 'Load more commits', gitLoadingMore: 'Loading…', gitEnd: 'Full history shown',
     pickTitle: 'Click to write an AI prompt · Ctrl+click to add more', estimate: 'Estimate', needsYou: 'Needs you',
     unscheduled: 'Unscheduled', willChange: s => `Will change to “${s}” — click to cancel or change`, clickToChange: 'Click to change status',
     moreTickets: n => `+${n} more tickets`,
@@ -898,12 +901,32 @@ function board(shown) {
 }
 
 // ---------- git graph ----------
-// Lazy per-project cache of the commit list from /api/.../git-graph. Cleared on a
-// manual refresh; a silent/background refresh keeps it so the graph does not flash.
+// Per-project cache of the commit list from /api/.../git-graph, loaded lazily in pages of
+// GG_PAGE: the first page when the view opens, more when the bottom is scrolled into view
+// (or the button is pressed). Cleared on a manual refresh; a silent/background refresh keeps
+// it so the graph does not flash. Entry: { repo, commits, hasMore, loading, failed, error }.
+const GG_PAGE = 50;
 let gitCache = {};
-async function loadGraph(pid) {
-  try { gitCache[pid] = await api(`/api/projects/${pid}/git-graph`); }
-  catch (e) { gitCache[pid] = { repo: false, error: e.message }; }
+const gitFirst = new Set();                           // project ids whose first page is in flight
+async function loadGraph(pid, more) {
+  let g = gitCache[pid];
+  if (more) {
+    if (!g || g.loading || !g.hasMore) return;
+    g.loading = true; g.failed = false;
+    const btn = $('#ggMore button'); if (btn) { btn.disabled = true; btn.textContent = T('gitLoadingMore'); }
+  } else { if (gitFirst.has(pid)) return; gitFirst.add(pid); }
+  try {
+    const r = await api(`/api/projects/${pid}/git-graph?limit=${GG_PAGE}&skip=${more ? g.commits.length : 0}`);
+    if (more) {
+      const have = new Set(g.commits.map(c => c.H));  // a new commit can shift pages: drop repeats
+      g.commits.push(...(r.commits || []).filter(c => !have.has(c.H)));
+      g.hasMore = !!r.hasMore; g.loading = false;
+    } else gitCache[pid] = r;
+  } catch (e) {
+    if (more) { g.loading = false; g.failed = true; toast(e.message); }   // failed: no auto-retry loop, button retries
+    else gitCache[pid] = { repo: false, error: e.message };
+  }
+  if (!more) gitFirst.delete(pid);
   if (state.view === pid && state.mode === 'graph') render();
 }
 function graphView(p) {
@@ -911,12 +934,32 @@ function graphView(p) {
   if (!g) { loadGraph(p.id); return `<div class="empty">${T('gitLoading')}</div>`; }
   if (!g.repo) return `<div class="empty">${g.error ? T('gitError', g.error) : T('gitNone')}</div>`;
   if (!g.commits || !g.commits.length) return `<div class="empty">${T('gitNone')}</div>`;
-  return `<div class="gg-head">${T('gitCommits', g.commits.length)}</div>${renderGitGraph(g.commits)}`;
+  setTimeout(watchGraphMore, 0);                      // after #main's innerHTML is set
+  return `<div class="gg-head">${T('gitCommits', g.commits.length, g.hasMore)}</div>${renderGitGraph(g.commits, g.hasMore)}
+    <div class="gg-more" id="ggMore">${g.hasMore
+      ? `<button class="btn" data-act="gitmore">${T('gitMore')}</button>`
+      : `<span>${T('gitEnd')}</span>`}</div>`;
+}
+
+// Load the next page when the "load more" sentinel scrolls into view.
+let ggObs = null;
+function watchGraphMore() {
+  if (ggObs) { ggObs.disconnect(); ggObs = null; }
+  const el = $('#ggMore');
+  if (!el || !('IntersectionObserver' in window)) return;      // no observer: the button still works
+  ggObs = new IntersectionObserver(es => {
+    const g = gitCache[state.view];
+    if (es.some(e => e.isIntersecting) && g && g.hasMore && !g.loading && !g.failed) loadGraph(state.view, true);
+  }, { root: $('#main'), rootMargin: '300px' });
+  ggObs.observe(el);
 }
 
 // Assign each commit a column (lane) and the column of each in-window parent, so the
 // page can draw the usual git-graph lanes. Commits come newest-first (--date-order).
-function layoutGraph(commits) {
+// With `more` (older commits not loaded yet) a parent outside the window still gets a lane,
+// at row = commits.length, so its line runs on to the bottom and keeps the same lane once
+// the next page arrives.
+function layoutGraph(commits, more) {
   const idx = new Map(commits.map((c, i) => [c.H, i]));
   const lanes = [];                                  // lane i reserved for this hash, or null
   const free = () => { const i = lanes.indexOf(null); return i < 0 ? lanes.length : i; };
@@ -928,10 +971,11 @@ function layoutGraph(commits) {
     lanes[col] = null;                                // free this commit's lane; parent 0 may retake it
     c.parentCols = [];
     c.parents.forEach((ph, k) => {
-      if (!idx.has(ph)) return;                       // parent is older than the fetched window
+      const inWin = idx.has(ph);
+      if (!inWin && !more) return;                    // older than the window and nothing more to load
       let pc = lanes.indexOf(ph);
       if (pc < 0) { pc = (k === 0 && lanes[col] == null) ? col : free(); lanes[pc] = ph; }
-      c.parentCols.push({ col: pc, row: idx.get(ph) });
+      c.parentCols.push({ col: pc, row: inWin ? idx.get(ph) : commits.length });
       maxCol = Math.max(maxCol, pc);
     });
     maxCol = Math.max(maxCol, col);
@@ -947,9 +991,9 @@ function refChip(ref) {
   return `<span class="gg-ref ${cls}" title="${esc(ref)}">${esc(label)}</span>`;
 }
 
-function renderGitGraph(commits) {
+function renderGitGraph(commits, more) {
   const ROW = 52, COLW = 18, GPAD = 11, R = 4.5;
-  const cols = layoutGraph(commits);
+  const cols = layoutGraph(commits, more);
   const W = GPAD * 2 + Math.max(1, cols) * COLW;
   const H = commits.length * ROW;
   const x = col => GPAD + col * COLW + COLW / 2;
@@ -959,7 +1003,7 @@ function renderGitGraph(commits) {
   commits.forEach((c, r) => {
     const x1 = x(c.col), y1 = y(r);
     c.parentCols.forEach(pp => {
-      const x2 = x(pp.col), y2 = y(pp.row), ym = y1 + ROW;
+      const x2 = x(pp.col), y2 = Math.min(y(pp.row), H), ym = y1 + ROW;   // not-yet-loaded parent: run to the bottom
       const d = `M${x1} ${y1} C${x1} ${y1 + ROW / 2} ${x2} ${ym - ROW / 2} ${x2} ${ym} L${x2} ${y2}`;
       edges += `<path d="${d}" fill="none" stroke="${gcol(pp.col)}" stroke-width="2"/>`;
     });
@@ -1238,6 +1282,7 @@ document.addEventListener('click', async e => {
   else if (el.dataset.prio) { state.prio = el.dataset.prio; }
   else if (el.dataset.mode) { state.mode = el.dataset.mode; }
   else if (el.dataset.toggle) { state.closed[el.dataset.toggle] = !state.closed[el.dataset.toggle]; el.parentElement.classList.toggle('closed'); persist(); return; }
+  else if (el.dataset.act === 'gitmore') return loadGraph(state.view, true);
   else if (el.dataset.act === 'build') return openBuild(projects.find(p => p.id === state.view));
   else if (el.dataset.act === 'edit') return openDialog(projects.find(p => p.id === state.view));
   else if (el.dataset.act === 'add') return openDialog();
