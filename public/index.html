@@ -173,7 +173,9 @@ select.sel{border:1px solid var(--line);background:var(--panel);border-radius:8p
 .more{text-align:center;color:var(--muted);font-size:12px;padding:6px}
 
 /* git graph view */
-.seg.grow-sp{margin-left:auto}
+.grow-sp{margin-left:auto}
+.grow-sp ~ .grow-sp{margin-left:0}                    /* only the first of them pushes right */
+#gbSel{max-width:260px}
 .gg-head{color:var(--muted);font-size:12px;margin:2px 0 8px;font-variant-numeric:tabular-nums}
 .git-graph{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
 .gg-svg{position:absolute;left:0;top:0;pointer-events:none}
@@ -372,6 +374,7 @@ const I18N = {
     gitLoading: 'Đang đọc lịch sử git…', gitNone: 'Thư mục này không phải kho git (hoặc chưa có commit).',
     gitError: e => `Không đọc được lịch sử git: ${e}`, gitCommits: (n, more) => `${n}${more ? '+' : ''} commit gần nhất`,
     gitMore: 'Tải thêm commit', gitLoadingMore: 'Đang tải…', gitEnd: 'Đã hiện toàn bộ lịch sử',
+    gitBranch: 'Xem theo nhánh', gitAllBranches: 'Tất cả nhánh', gitLocal: 'Nhánh local', gitRemote: 'Nhánh remote',
     pickTitle: 'Bấm để soạn lệnh cho AI · Ctrl+bấm để chọn thêm', estimate: 'Ước lượng', needsYou: 'Cần bạn',
     unscheduled: 'Chưa lên lịch', willChange: s => `Sẽ chuyển sang “${s}” — bấm để huỷ hoặc đổi`, clickToChange: 'Bấm để đổi trạng thái',
     moreTickets: n => `+${n} ticket nữa`,
@@ -427,6 +430,7 @@ const I18N = {
     gitLoading: 'Loading git history…', gitNone: 'This folder is not a git repository (or has no commits yet).',
     gitError: e => `Cannot read git history: ${e}`, gitCommits: (n, more) => `${n}${more ? '+' : ''} most recent commit${n === 1 && !more ? '' : 's'}`,
     gitMore: 'Load more commits', gitLoadingMore: 'Loading…', gitEnd: 'Full history shown',
+    gitBranch: 'View by branch', gitAllBranches: 'All branches', gitLocal: 'Local branches', gitRemote: 'Remote branches',
     pickTitle: 'Click to write an AI prompt · Ctrl+click to add more', estimate: 'Estimate', needsYou: 'Needs you',
     unscheduled: 'Unscheduled', willChange: s => `Will change to “${s}” — click to cancel or change`, clickToChange: 'Click to change status',
     moreTickets: n => `+${n} more tickets`,
@@ -490,7 +494,7 @@ function setLang(l) {
 // ---------- end i18n ----------
 
 let projects = [];
-let state = load('bv-state', { view: 'all', status: 'open', prio: 'all', section: 'all', q: '', mode: 'list', closed: {} });
+let state = load('bv-state', { view: 'all', status: 'open', prio: 'all', section: 'all', q: '', mode: 'list', closed: {}, gbranch: {} });
 function load(k, d) { try { return { ...d, ...JSON.parse(localStorage.getItem(k)) }; } catch { return d; } }
 function persist() { try { localStorage.setItem('bv-state', JSON.stringify({ ...state, q: '' })); } catch {} }
 
@@ -835,6 +839,7 @@ function renderProject(p) {
       ${state.mode === 'board' || state.mode === 'graph' ? '' : `<div class="seg">${segBtn('open', T('fOpen'))}${segBtn('doing', T('doing'))}${segBtn('done', T('done'))}${c.cancel ? segBtn('cancel', T('stCancel')) : ''}${segBtn('all', T('fAll'))}</div>`}
       ${prios.length && state.mode !== 'graph' ? `<div class="seg"><button class="${state.prio === 'all' ? 'on' : ''}" data-prio="all">${T('anyPrio')}</button>${prios.map(x => `<button class="${state.prio === x ? 'on' : ''}" data-prio="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''}
       ${state.mode === 'graph' ? '' : `<select class="sel" id="secSel"><option value="all">${T('anyMs')}</option>${secs.map(s => `<option ${state.section === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>`}
+      ${state.mode === 'graph' ? branchSelect(p) : ''}
       <div class="seg grow-sp"><button class="${state.mode === 'list' ? 'on' : ''}" data-mode="list">${T('list')}</button><button class="${state.mode === 'board' ? 'on' : ''}" data-mode="board">${T('board')}</button><button class="${state.mode === 'graph' ? 'on' : ''}" data-mode="graph">${T('graph')}</button></div>
     </div>
     ${state.mode === 'graph' ? graphView(p) : (shown.length ? (state.mode === 'board' ? board(shown) : listView(p, shown)) : `<div class="empty">${T('noMatch')}</div>`)}`}
@@ -908,6 +913,14 @@ function board(shown) {
 const GG_PAGE = 50;
 let gitCache = {};
 const gitFirst = new Set();                           // project ids whose first page is in flight
+// Branch filter: state.gbranch[pid] is the chosen full ref ('' / missing = all branches);
+// gitBranches[pid] is the branch list for the picker, refreshed with every first page.
+let gitBranches = {};
+const wantBranch = pid => state.gbranch[pid] || '';
+function setBranch(pid, ref) {
+  if (ref) state.gbranch[pid] = ref; else delete state.gbranch[pid];
+  delete gitCache[pid]; persist();
+}
 async function loadGraph(pid, more) {
   let g = gitCache[pid];
   if (more) {
@@ -915,19 +928,34 @@ async function loadGraph(pid, more) {
     g.loading = true; g.failed = false;
     const btn = $('#ggMore button'); if (btn) { btn.disabled = true; btn.textContent = T('gitLoadingMore'); }
   } else { if (gitFirst.has(pid)) return; gitFirst.add(pid); }
+  const asked = wantBranch(pid);
   try {
-    const r = await api(`/api/projects/${pid}/git-graph?limit=${GG_PAGE}&skip=${more ? g.commits.length : 0}`);
+    const r = await api(`/api/projects/${pid}/git-graph?limit=${GG_PAGE}&skip=${more ? g.commits.length : 0}&branch=${encodeURIComponent(more ? g.branch || '' : asked)}`);
     if (more) {
       const have = new Set(g.commits.map(c => c.H));  // a new commit can shift pages: drop repeats
       g.commits.push(...(r.commits || []).filter(c => !have.has(c.H)));
       g.hasMore = !!r.hasMore; g.loading = false;
-    } else gitCache[pid] = r;
+    } else {
+      if (r.branches) gitBranches[pid] = r.branches;
+      if (wantBranch(pid) === asked) {                               // else the user picked another branch meanwhile: drop this page
+        if (r.repo && (r.branch || '') !== asked) { r.branch ? state.gbranch[pid] = r.branch : delete state.gbranch[pid]; persist(); }  // saved branch is gone
+        gitCache[pid] = r;
+      }
+    }
   } catch (e) {
     if (more) { g.loading = false; g.failed = true; toast(e.message); }   // failed: no auto-retry loop, button retries
     else gitCache[pid] = { repo: false, error: e.message };
   }
   if (!more) gitFirst.delete(pid);
-  if (state.view === pid && state.mode === 'graph') render();
+  if (state.view === pid && state.mode === 'graph') render();   // a stale first page is dropped; this render loads the right one
+}
+function branchSelect(p) {
+  const list = gitBranches[p.id] || [], cur = wantBranch(p.id);
+  const opt = b => `<option value="${esc(b.ref)}" ${cur === b.ref ? 'selected' : ''}>${esc(b.name)}</option>`;
+  const group = (label, bs) => bs.length ? `<optgroup label="${esc(label)}">${bs.map(opt).join('')}</optgroup>` : '';
+  const pending = cur && !list.some(b => b.ref === cur)               // list not loaded yet: keep the saved choice visible
+    ? opt({ ref: cur, name: cur.replace(/^refs\/(heads|remotes)\//, '') }) : '';
+  return `<select class="sel grow-sp" id="gbSel" title="${T('gitBranch')}"><option value="">${T('gitAllBranches')}</option>${pending}${group(T('gitLocal'), list.filter(b => !b.remote))}${group(T('gitRemote'), list.filter(b => b.remote))}</select>`;
 }
 function graphView(p) {
   const g = gitCache[p.id];
@@ -1293,7 +1321,10 @@ document.addEventListener('click', async e => {
 document.addEventListener('input', e => {
   if (e.target.id === 'q') { state.q = e.target.value; const pos = e.target.selectionStart; render(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); }
 });
-document.addEventListener('change', e => { if (e.target.id === 'secSel') { state.section = e.target.value; persist(); render(); } });
+document.addEventListener('change', e => {
+  if (e.target.id === 'secSel') { state.section = e.target.value; persist(); render(); }
+  if (e.target.id === 'gbSel') { setBranch(state.view, e.target.value); render(); }
+});
 document.addEventListener('keydown', e => {
   const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
   if (e.key === 'Escape' && $('#stMenu')) { closeStatusMenu(); return; }

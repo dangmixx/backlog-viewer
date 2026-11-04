@@ -57,7 +57,7 @@ Changing a status in the app rewrites only the `[ ]` / `[~]` / `[x]` cell of tha
 
 - Overview of all projects, progress per project and milestone
 - List / board / git-graph view, filters by status, priority, milestone, search (`/`)
-- **Git graph**: a per-project commit graph (the project folder's git history across all branches) with lanes, merges, branch and tag labels, loaded lazily (50 commits first, more as you scroll down) — switch to it with the **Git graph** button next to List / Board
+- **Git graph**: a per-project commit graph (the project folder's git history across all branches) with lanes, merges, branch and tag labels, loaded lazily (50 commits first, more as you scroll down), with a branch picker (all branches, or one local/remote branch; remembered per project) — switch to it with the **Git graph** button next to List / Board
 - Change a ticket's status from a menu; it is written to the file after 5 s (cancel with the toast button or Ctrl+Z), then undo with Ctrl+Z
 - Click a ticket to compose a one-line prompt for an AI coding agent (Ctrl+click to add tickets)
 - Release build button: runs the project's build command (or `tools/export_release.ps1`), bumps `version/code` and `version/name` in a Godot `export_presets.cfg` first and restores them if the build fails

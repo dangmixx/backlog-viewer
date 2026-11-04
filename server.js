@@ -280,30 +280,42 @@ const anyBuildRunning = () => [...builds.values()].some(b => b.running);
 // separated by \x1f (unit) and records by \x1e (record), so commit messages are safe.
 // Paged: `skip` commits are skipped and `limit` returned; one extra is requested so the
 // reply can say whether older commits remain (`hasMore`) without a second git call.
-function gitGraph(p, limit, skip = 0) {
-  const US = '\x1f', RS = '\x1e';
+// `branch` (a full ref such as refs/heads/x or refs/remotes/origin/x) limits the graph to the
+// history reachable from that ref; empty = all branches. It is only used when it is one of
+// the repository's real branch refs, otherwise it falls back to all (the reply's `branch`
+// says what was actually used). The first page (skip = 0) also carries the branch list.
+const runGit = args => new Promise(ok =>
+  execFile('git', args, { windowsHide: true, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => ok({ err, stdout, stderr })));
+
+async function gitGraph(p, limit, skip = 0, branch = '') {
+  const US = '\x1f', RS = '\x1e', dir = projDir(p);
+  const fail = r => ({ repo: false, error: r.err.code === 'ENOENT' ? 'git not found on PATH' : (String(r.stderr || r.err.message).trim() || 'git failed') });
+
+  const refs = await runGit(['-C', dir, 'for-each-ref', '--format=%(refname)%09%(HEAD)', 'refs/heads', 'refs/remotes']);
+  if (refs.err) return fail(refs);
+  const branches = refs.stdout.split('\n').filter(Boolean).map(l => {
+    const [ref, head] = l.split('\t');
+    return { ref, name: ref.replace(/^refs\/(heads|remotes)\//, ''), remote: ref.startsWith('refs/remotes/'), current: head === '*' };
+  }).filter(b => !/^refs\/remotes\/[^/]+\/HEAD$/.test(b.ref))      // origin/HEAD is only an alias
+    .sort((a, b) => a.remote - b.remote || b.current - a.current || a.name.localeCompare(b.name));
+  if (!branches.some(b => b.ref === branch)) branch = '';
+
   const fmt = ['%H', '%P', '%an', '%ad', '%D', '%s'].join(US) + RS;
-  const args = ['-C', projDir(p), 'log', '--all', '--date-order',
-    '--skip=' + skip, '-n', String(limit + 1), '--pretty=format:' + fmt, '--date=format:%Y-%m-%d %H:%M'];
-  return new Promise(ok => {
-    execFile('git', args, { windowsHide: true, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) {
-        const notGit = err.code === 'ENOENT' ? 'git not found on PATH' : (String(stderr || err.message).trim() || 'git failed');
-        return ok({ repo: false, error: notGit });
-      }
-      const commits = stdout.split(RS).map(s => s.replace(/^\r?\n/, '')).filter(s => s.trim()).map(rec => {
-        const f = rec.split(US);
-        return {
-          h: (f[0] || '').slice(0, 8), H: f[0] || '',
-          parents: f[1] ? f[1].split(' ').filter(Boolean) : [],
-          an: f[2] || '', ad: f[3] || '',
-          refs: f[4] ? f[4].split(',').map(x => x.trim()).filter(Boolean) : [],
-          s: f[5] || '',
-        };
-      });
-      ok({ repo: true, commits: commits.slice(0, limit), hasMore: commits.length > limit });
-    });
+  const args = ['-C', dir, 'log', branch || '--all', '--date-order',
+    '--skip=' + skip, '-n', String(limit + 1), '--pretty=format:' + fmt, '--date=format:%Y-%m-%d %H:%M', ...(branch ? ['--'] : [])];
+  const r = await runGit(args);
+  if (r.err) return fail(r);
+  const commits = r.stdout.split(RS).map(s => s.replace(/^\r?\n/, '')).filter(s => s.trim()).map(rec => {
+    const f = rec.split(US);
+    return {
+      h: (f[0] || '').slice(0, 8), H: f[0] || '',
+      parents: f[1] ? f[1].split(' ').filter(Boolean) : [],
+      an: f[2] || '', ad: f[3] || '',
+      refs: f[4] ? f[4].split(',').map(x => x.trim()).filter(Boolean) : [],
+      s: f[5] || '',
+    };
   });
+  return { repo: true, commits: commits.slice(0, limit), hasMore: commits.length > limit, branch, ...(skip === 0 ? { branches } : {}) };
 }
 
 // ---------- native file picker (Windows) ----------
@@ -436,13 +448,13 @@ http.createServer(async (req, res) => {
         if (req.method === 'DELETE') stopBuild(p);
         return send(res, 200, buildInfo(p));
       }
-      // GET /api/projects/:id/git-graph?limit=N&skip=M — one page of the commit graph of the project's folder
+      // GET /api/projects/:id/git-graph?limit=N&skip=M&branch=REF — one page of the commit graph of the project's folder
       if (parts[1] === 'projects' && parts[3] === 'git-graph' && req.method === 'GET') {
         const p = list.find(p => p.id === parts[2]);
         if (!p) return send(res, 404, { error: msg(lang, 'noProject') });
         const limit = Math.min(500, Math.max(1, parseInt(url.searchParams.get('limit'), 10) || 50));
         const skip = Math.max(0, parseInt(url.searchParams.get('skip'), 10) || 0);
-        return send(res, 200, await gitGraph(p, limit, skip));
+        return send(res, 200, await gitGraph(p, limit, skip, url.searchParams.get('branch') || ''));
       }
       // GET /api/projects
       if (parts[1] === 'projects' && !parts[2] && req.method === 'GET')
