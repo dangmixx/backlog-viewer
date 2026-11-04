@@ -6,9 +6,12 @@ A small local web app for tracking the tickets in the `BACKLOG.md` files of all 
 
 ```
 node server.js            # http://localhost:4321
-start.cmd                 # Windows: starts hidden, opens the browser, quits when every tab is closed
-stop.cmd                  # stops the server
+start.cmd / stop.cmd      # Windows: start hidden + open the browser / stop the server
+start.command             # macOS: double-click in Finder — same behaviour (quits when every tab is closed)
+stop.command              # macOS: stop the server
 ```
+
+On macOS the first double-click may be blocked by Gatekeeper; right-click → **Open** once (or `xattr -d com.apple.quarantine start.command stop.command`).
 
 On first run it scans the parent folder for `BACKLOG*.md` files and stores the project list in `projects.json` (not committed).
 
