@@ -324,6 +324,11 @@ async function gitGraph(p, limit, skip = 0, branch = '') {
 function pickFile(dir, lang) {
   let start = ROOT;
   try { if (dir) { const d = path.resolve(String(dir)); start = fs.statSync(d).isDirectory() ? d : path.dirname(d); } } catch {}
+  if (process.platform === 'darwin') return pickFileMac(start, lang);
+  return pickFileWin(start, lang);
+}
+
+function pickFileWin(start, lang) {
   const q = s => "'" + String(s).replace(/'/g, "''") + "'";
   const ps = `
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -338,6 +343,17 @@ if ($d.ShowDialog($owner) -eq 'OK') { $d.FileName }
 $owner.Close()`;
   return new Promise(ok => {
     execFile('powershell', ['-NoProfile', '-STA', '-Command', ps], { windowsHide: true, encoding: 'utf8', timeout: 10 * 60 * 1000 },
+      (err, out) => ok(err ? null : (out.trim() || null)));
+  });
+}
+
+// macOS: native Finder "choose file" dialog via AppleScript; cancel → user cancelled error → null
+function pickFileMac(start, lang) {
+  const q = s => '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+  const applescript = `set theFile to choose file with prompt ${q(msg(lang, 'pickTitle'))} default location (POSIX file ${q(start)}) of type {"md", "public.plain-text"}
+POSIX path of theFile`;
+  return new Promise(ok => {
+    execFile('osascript', ['-e', applescript], { encoding: 'utf8', timeout: 10 * 60 * 1000 },
       (err, out) => ok(err ? null : (out.trim() || null)));
   });
 }
@@ -511,7 +527,7 @@ http.createServer(async (req, res) => {
       }
       // POST /api/pick-file {dir} → native Windows "Open file" dialog, returns {path} (null = cancelled)
       if (parts[1] === 'pick-file' && req.method === 'POST') {
-        if (process.platform !== 'win32') return send(res, 501, { error: msg(lang, 'noPicker') });
+        if (process.platform !== 'win32' && process.platform !== 'darwin') return send(res, 501, { error: msg(lang, 'noPicker') });
         const b = await readBody(req);
         return send(res, 200, { path: await pickFile(b.dir, lang) });
       }
